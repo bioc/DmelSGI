@@ -1,0 +1,235 @@
+
+\section{Quality control}
+\label{secQualityControl}
+
+
+<<QualityControlLoadLibrary, results='hide', message=FALSE>>=
+library("beeswarm")
+library("RColorBrewer")
+library("DmelSGI")
+library("hwriter")
+library("xtable")
+
+basedir = getBaseDir()
+resultdir = file.path( basedir, "result", "QualityControl")
+dir.create(resultdir, recursive = TRUE,showWarnings=FALSE)
+
+data("datamatrix", package="DmelSGI")
+@
+
+\subsection{Quality control of features}
+\label{secQualityControlFeatures}
+
+To control for the quality of each feature, its reproducibility over
+replicate measurements was assessed. To this end, we employed the two
+independent dsRNA designs in the role of replicates (note that this
+make our quality control  more stringent than if we were using
+regular replicates, since the differences in the dsRNA reagents can
+introduce additional variation).
+For each feature $m$,
+we computed the two vectors $\mathbf{v}_{m}^{1}$ and  $\mathbf{v}_{m}^{2}$,
+\begin{equation}
+\mathbf{v}_{m}^{l} = D_{\cdot\,-\,\cdot\, l m} \quad\quad\mbox{for }l=1,2.
+\end{equation}
+Here, the notation $-$ indicates averaging over an index, and the notation
+$\cdot$ indicates extraction of the whole subspace spanned by this index; thus,
+$\mathbf{v}_{m}^{l}$ is a vector with
+1367 $\times$
+\Sexpr{dim(datamatrix$D)[3]} $=$
+\Sexpr{1367*(dim(datamatrix$D)[3])} elements.
+We then computed the correlation coefficient $\rho_{m}$ between
+$\mathbf{v}_{m}^{1}$ and  $\mathbf{v}_{m}^{2}$.
+
+<<QualityControlFeatureLoadData>>=
+data("qualityControlFeature", package="DmelSGI")
+data("Features", package="DmelSGI")
+@
+
+<<QualityControlFeatureCor>>=
+Fcor = qualityControlFeature$correlation
+Fcor = Fcor[order(-Fcor)]
+@
+
+<<QualityControlFeaturePlot>>=
+par(mar=c(4.1,4.1,1,1))
+plot(Fcor,pch=19,xlab="features",
+     ylab=c("correlation of phenotype","between replicates"),
+     ylim = range(qualityControlFeature$correlation,finite=TRUE),
+     xlim=c(0,sum(is.finite(Fcor))),cex.lab=1.3, cex.axis=1.3)
+abline(h=0.6)
+@
+
+Some correlation coefficients
+could not be computed because the vector elements did not show any variation.
+We selected features for subsequent analysis that fulfilled the following two criteria:
+\begin{packeditemize}
+  \item $\rho_m\ge0.6$,
+  \item Less than 1\% of values in $D_{\cdot\cdot\cdot\cdot\,m}$ undefined.
+\end{packeditemize}
+\Sexpr{sum(qualityControlFeature$passed)} features fulfilled this criterion.
+
+<<QualityControlFeatureTableData>>=
+data("Features", package="DmelSGI")
+data("qualityControlFeature", package="DmelSGI")
+@
+
+A table of all features is written to a text file.
+<<QualityControlFeatureTable>>=
+Features = cbind(Features, QC=ifelse(qualityControlFeature$passed, "passed", "failed"),
+                 name = hrNames(row.names(Features)))
+write.table(Features, file=file.path(resultdir,"FeatureTable.txt"), sep="\t", quote=FALSE)
+@
+
+<<QualityControlFeatureTableWebpage,echo=FALSE,results='hide'>>=
+file.copy(system.file("images/hwriter.css",package="hwriter"),resultdir)
+page=openPage(file.path(resultdir,"FeatureTable.html"), link.css="hwriter.css")
+hwrite("Features extracted from images", heading=1, page=page)
+hwrite("[Download as text file]", link="FeatureTable.txt", page=page)
+hwrite(Features, page=page)
+closePage(page, splash=FALSE)
+size = 110
+Page = ceiling(seq_len(nrow(Features)) / size)
+for (p in 1:max(Page)) {
+  XT = xtable(Features[Page==p,],
+              caption=sprintf("Features extracted from images (Part %d/%d)",
+                              p,max(Page)))
+  if (p==1) {
+    con = file(file.path(resultdir,"FeatureTable.tex"))
+    label(XT) = "TabFeature"
+  } else {
+    con = file(file.path(resultdir,"FeatureTable.tex"),open="a")
+    writeLines("\\addtocounter{table}{-1}", con=con)
+  }
+  print(XT, file=con,
+        size="tiny",
+        caption.placement="top")
+  close(con)
+}
+@
+
+The head of the table of all features looks like this:
+<<QualityControlFeatureTablePrint,echo=FALSE,results='asis'>>=
+XT = xtable(Features[1:7,],
+            caption="Features extracted from images")
+print(XT,caption.placement="top")
+@
+
+\subsection{Quality control of dsRNA}
+\label{secQualityControlGenes}
+
+<<QualityControlGeneLoadData>>=
+data("qualityControlGene", package="DmelSGI")
+@
+
+To detect cases where the dsRNA reagents for our target genes had
+off-target effects, we compared the phenotypic profiles of the two
+dsRNA designs for each target gene.  To this end, we computed the
+vectors
+\begin{equation}
+\mathbf{w}_{i}^{j} = D_{ij\,\cdot\, -\, \cdot}
+\end{equation}
+using only those features that passed the quality filter described in
+Section~\ref{secQualityControlFeatures}. We then computed the correlation
+$\tilde{\rho}_i$ between $\mathbf{w}_{i}^{1}$ and
+$\mathbf{w}_{i}^{2}$. Target gene $i$ was selected for subsequent
+analysis if $\tilde{\rho}_i\ge0.7$.  
+\Sexpr{sum(qualityControlGene$passed)} genes
+passed this quality control criterion.
+
+<<QualityControlGenePlot>>=
+par(mar=c(4.1,4.5,1,1))
+Sample = which(qualityControlGene$Annotation$group == "sample")
+corGene = qualityControlGene$correlation[Sample]
+corGene = corGene[order(-corGene)]
+plot(corGene,
+     pch=19,
+     xlab="targeted genes",
+     ylab=c("cor of phenotypic profile","between dsRNA designs"),
+     cex.lab=1.3, cex.axis=1.3)
+abline(h=0.7)
+@
+
+A table of all genes that passed quality control is written to a text file.
+<<QualityControlGeneTableOfPassedGenesTxt>>=
+data("qualityControlGene", package="DmelSGI")
+PassedSamples = which((qualityControlGene$Annotation$group == "sample")
+                      & (qualityControlGene$passed))
+A = qualityControlGene$Annotation
+A$cor = qualityControlGene$correlation
+A = A[,c("TID", "Symbol", "cor", "Name")]
+A = A[PassedSamples,]
+A = A[order(A$cor),]
+A$cor = sprintf("%0.2f", A$cor)
+write.table(A, file=file.path(resultdir,"PassedGenes.txt"), sep="\t", 
+            quote=FALSE,row.names=FALSE)
+@
+
+<<QualityControlGeneTableOfPassedGenesWebpage,echo=FALSE,results='hide'>>=
+file.copy(system.file("images/hwriter.css",package="hwriter"),resultdir)
+page=openPage(file.path(resultdir,"PassedGenes.html"), link.css="hwriter.css")
+hwrite("List of genes that passed the quality control", heading=1, page=page)
+hwrite("[Download as text file]", link="PassedGenes.txt", page=page)
+hwrite(A, page=page)
+closePage(page, splash=FALSE)
+XT = xtable(A,caption="List of genes that passed the quality control")
+con = file(file.path(resultdir,"PassedGenes.tex"))
+label(XT) = "TabPassedGenes"
+print(XT, file=con,
+      size="footnotesize",
+      caption.placement="top")
+close(con)
+@
+
+The head of the table of genes that passed quality control looks like this:
+<<QualityControlGeneTableOfPassedGenesPrint,echo=FALSE,results='asis'>>=
+XT = xtable(A[1:7,],caption="List of genes that passed the quality control")
+print(XT,caption.placement="top")
+@
+
+The data remaining after these quality control steps were represented in a
+5-dimensional array $Y_{ijklm}$ with dimensions
+\begin{packeditemize}
+\item \Sexpr{dim(datamatrix$D)[1]} target genes,
+\item \Sexpr{dim(datamatrix$D)[2]} dsRNA designs per target gene,
+\item \Sexpr{dim(datamatrix$D)[3]} query genes,
+\item \Sexpr{dim(datamatrix$D)[4]} dsRNA designs per query gene, %$ to make emacs happy
+\item \Sexpr{sum(qualityControlFeature$passed)} features.
+\end{packeditemize}
+
+\subsection{Discussion of feature and target gene reagent quality control}
+The correlation-based criteria used in Sections~\ref{secQualityControlFeatures} and
+\ref{secQualityControlGenes} are biased towards features and reagents that
+report biological signal in a large fraction of measurements. In principle it is
+possible that features or reagents that did not pass these criteria
+could still contain important information, e.\,g.\ if their data is
+only reporting signal for a few rare interactions and otherwise simply
+fluctuates around a baseline value. In this paper, such features and
+reagents were excluded, however, their data might still be useful for
+additional analyses.
+
+\subsection{Comparison to Rohn et al.}
+We compared the extracted features to phenotypes reported by \cite{rohn2011comparative}.
+
+<<QualityControlComparisonToRohnEtAl>>=
+data("SKDdata", package="DmelSGI")
+data("mainEffects", package="DmelSGI")
+data("RohnEtAl", package="DmelSGI")
+
+RohnEtAl = RohnEtAl[which(RohnEtAl$Computed.Target %in% SKDdata$Anno$target$TID),]
+I = match(RohnEtAl$Computed.Target, SKDdata$Anno$target$TID)
+
+RohnEtAlanno = RohnEtAl[,1:3]
+RohnEtAl = as.matrix(RohnEtAl[4:29])
+D = apply(SKDdata$D[I,,,],c(1,4), mean, na.rm=TRUE)
+
+i=3; j=2
+anova(lm(D[,i] ~ RohnEtAl[,j]))
+beeswarm(D[,i] ~ RohnEtAl[,j],pch=20, xlab=c(colnames(RohnEtAl)[j],"Rohn et al."), ylab=dimnames(D)[[2]][i])
+i=13; j=5
+anova(lm(D[,i] ~ RohnEtAl[,j]))
+beeswarm(D[,i] ~ RohnEtAl[,j],pch=20, xlab=c(colnames(RohnEtAl)[j],"Rohn et al."), ylab=dimnames(D)[[2]][i])
+@
+
+
+
+

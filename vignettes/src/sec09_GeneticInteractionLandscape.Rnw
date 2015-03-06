@@ -1,0 +1,271 @@
+\section{Genetic interaction landscape}
+\label{secGIlandscape}
+
+<<GIlandscapeLoadLibrary,results='hide',message=FALSE>>=
+library("DmelSGI")
+library("igraph")
+library("RSVGTipsDevice")
+library("hwriter")
+library("grid")
+
+basedir = getBaseDir()
+resultdir = file.path( basedir, "result", "GeneticInteractionLandscape")
+dir.create(resultdir, recursive = TRUE,showWarnings=FALSE)
+@
+
+\subsection{Correlation graph}
+\label{secGIlandscapeGraph}
+
+<<GIlandscapeLoadData>>=
+data("Interactions", package="DmelSGI")
+@
+
+\subsubsection*{Preprocessing of the interaction data and correlation matrix}
+\warning{Do not run the next code chunk. This will take quit a while.
+A hard coded result can be found in the overnext code chunk.} It computes normalization factors for each phenotypic feature. First, the standard deviation over the four siRNA combinations per gene pair per phenotype is computed. Then, the median of the standard deviations per phenotype is used as a normalization factor. 
+<<GIlandscapeNormalization1,eval=FALSE>>=
+data("pimatrix", package="DmelSGI")
+D = pimatrix$D
+D2 = aperm(D, c(1,3,2,4,5))
+dim(D2) = c(prod(dim(D2)[1:2]),prod(dim(D2)[3:4]),dim(D2)[5])
+
+SD = apply(D2,c(1,3),sd, na.rm=TRUE)
+MSD = apply(SD, 2, function(x) { median(x,na.rm=TRUE) } )
+@
+
+To avoid long waiting times, I hard coded the result of the last code chunk.
+<<GIlandscapeNormalization2>>=
+Sel = 1:1293
+MSD = c(0.0833528975114521, 0.134136618342975, 0.0498996012784751,
+0.204772216536139, 0.0142975582945938, 0.0428299793772605, 0.0576235314621808,
+0.0833934805305705, 0.0328437541652814, 0.147643254412127, 0.0866394118952878,
+0.140840565863283, 0.0154131573539473, 0.0286467941877466, 0.0496616658001497,
+0.0164694485385577, 0.233130597062897, 0.222961290060361, 0.00228512594775289,
+0.0773453995034531, 0.0892678802977647)
+@
+
+$\pi$- scores are devided by the median deviation computed in the last code chunk to make $\pi$-scores comparable across phenotypes. The genetic interaction profiles of the different phenotypes are stacked on top of each other.
+<<GIlandscapeNormalization3>>=
+PI = Interactions$piscore
+for (i in 1:dim(PI)[3]) {
+  PI[,,i] = PI[,,i] / MSD[i]
+}
+dim(PI) = c(dim(PI)[1],prod(dim(PI)[2:3]))
+@
+
+For each target gene the number of significant genetic interactions \Robject{nint} is computed. Then, for each gene pair $i,j$ the minimum number of \Robject{nint}$_i$ and \Robject{nint}$_j$ is derived.
+<<GIlandscapeNrInteractions>>=
+nint = apply(Interactions$padj <= 0.01,1,sum)
+Nint = matrix(nint,nrow=length(nint),ncol=length(nint))
+Nint[t(Nint) < Nint] = t(Nint)[t(Nint) < Nint]
+row.names(Nint) = colnames(Nint) = Interactions$Anno$target$Symbol
+@
+
+Load the clusters that are highlighted in the correlation graph.
+<<GIlandscapeLoadGeneClusters>>=
+data("SelectedClusters", package="DmelSGI")
+SelectedClusters = c(SelectedClusters,
+      list(allOthers = Interactions$Anno$target$Symbol[
+        !( Interactions$Anno$target$Symbol %in% unlist(SelectedClusters))]))
+Labels = SelectedClusters
+@
+
+The genes are colored according to the clustering.
+
+<<GIlandscapeCol>>=
+set.seed(26323)
+Col = c("SWI/SNF" = "#ED1C24", 
+        "Condensin / Cohesin" = "#B8D433", 
+        "Cytokinesis" = "#67BF6B", 
+        "SAC" = "#3C58A8", 
+        "DREAM complex" = "#B64F9D", 
+        "Centrosome / Mitotic spindle" = "#EF4123", 
+        "CCT" = "#8CC63F", 
+        "Sequence-specific TFs" = "#67C4A4", 
+        "26S Proteasome" = "#3A51A3", 
+        "CSN" = "#F17A22", 
+        "RNA helicase" = "#6CBE45", 
+        "APC/C" = "#66C9D7", 
+        "Ribosomal biogenesis" = "#4A50A2", 
+        "Condensin / Cohesin (2)" = "#ED127A", 
+        "SAGA & Mediator" = "#F1B61C", 
+        "Cell-cell signalling" = "#61BB46", 
+        "Vesicle trafficking and cytoskeleton" = "#2CB4E8", 
+        "DNA repair and apoptosis" = "#6950A1", 
+        "ARP2/3 complex" = "#ED1940", 
+        "Tor signalling" = "#D54097", 
+        "Ras / MAPK signalling" = "#65BC46", 
+        "RNA PolII" = "#4074BA", 
+        "Wnt signalling" = "#8E4F9F")
+
+col = rep("gray80",nrow(Interactions$Anno$target))
+names(col) = Interactions$Anno$target$Symbol
+for (i in 1:length(Labels)) {
+  col[Labels[[i]]] = Col[i]
+}
+@
+
+Perform a principal component analysis on the genetic interaction profiles and compute a correlation matrix after embedding of the genetic interaction profiles in 25 dimensions. 
+<<GIlandscapePCA>>=
+dimPCA = 25
+PCA = prcomp(PI)
+X = sweep(PI,2,PCA$center) %*% PCA$rotation[,1:dimPCA]
+X = sweep(X,2,apply(X,2,sd), FUN="/")
+theCorrPCA = cor(t(X), use = "pairwise.complete.obs")
+row.names(theCorrPCA) = colnames(theCorrPCA) = Interactions$Anno$target$Symbol
+@
+
+The correlation matrix is converted in an Euclidean distance.
+<<GIlandscapeDist>>=
+D = 2 - 2*theCorrPCA
+D[lower.tri(D,diag=TRUE)] = NA
+@
+
+The Euclidean distance matrix is converted in an edge list. Edges with a distance larger than 0.8 (equates to a correlation smaller than 0.6) are discarded.
+<<GIlandscapeEdgeList>>=
+thresholdDist = 0.8
+wedges = data.frame(V1 = rep(Interactions$Anno$target$Symbol,times=dim(D)[1]),
+                    V2 = rep(Interactions$Anno$target$Symbol,each=dim(D)[1]),
+                    nint = as.vector(Nint),
+                    weight = as.vector(D),stringsAsFactors=FALSE)
+wedges = wedges[which(wedges$weight <= thresholdDist),]
+@
+
+Create an \Rclass{igraph}-object \Robject{g}.
+<<GIlandscapeigraph>>=
+g <- graph.data.frame(wedges, directed=FALSE)
+V(g)$color = col[V(g)$name]
+V(g)$frame.color = ifelse(V(g)$name %in% SelectedClusters$allOthers, 
+                          "#666666","#000000")
+V(g)$size = 1.5
+V(g)$size[!(V(g)$name %in% Labels$allOthers)] = 2.5
+V(g)$label = rep("",length(V(g)$name))
+E(g)$color <- "#e7e7e7"
+E(g)$color[E(g)$nint > 5] <- "#cccccc"
+@
+
+The graph is layed-out by the Fruchterman-Reingold graph layout algorithm \cite{fruchterman1991graph} using Euclidean distances subtracted from the maximum distance as edge weights.
+<<GIlandscapeFruchtermanReingold>>=
+set.seed(234816)
+a = 0.07
+b = 2.0
+co <- layout.fruchterman.reingold(graph=g,
+                          params=list(weights=(thresholdDist - E(g)$weight),
+                          area=a*vcount(g)^2,
+                          repulserad=b*a*vcount(g)^2*vcount(g)))
+@
+
+The gene coordinates are centered and scaled to a box in $[-1,1]$.
+<<GIlandscapeUnitBox>>=
+co[,1] = 2*(co[,1] - min(co[,1])) / diff(range(co[,1]))-1
+co[,2] = 2*(co[,2] - min(co[,2])) / diff(range(co[,2]))-1
+row.names(co) = V(g)$name
+@
+
+The genes are permuted such that the colored vertices are drawn on top and the hairball is plotted.
+<<GIlandscapePermuteVertices>>=
+g = permute.vertices(graph=g, permutation = 
+                       rank((!(V(g)$name %in% SelectedClusters$allOthers)),
+                            ties.method="random"))
+co = co[V(g)$name,]
+@
+<<GIlandscape-graph,resize.width="0.9\\textwidth",fig.width=14,fig.height=10>>=
+# par(mar=c(0.1,0.1,0.1,0.1))
+plot(g, layout=co)
+plotHairballLabels(g, co, Labels[-length(Labels)], Col)
+@
+<<GIlandscapeHairballSVG,echo=FALSE,results='hide',eval=FALSE>>=
+# Plot the genetic interaction landscape as SVG
+devSVGTips(file.path(resultdir,"GIlandscape-graph.svg"), toolTipMode=1,
+           title="Genetic interaction landscape",
+           width = 10, height = 10)
+par(xpd=NA,mar=c(5,5,5,5))
+plot(0,type='n',
+     xlim=range(co, na.rm=TRUE),
+     ylim=range(co, na.rm=TRUE),
+     xlab='', ylab='',
+     main="Genetic interaction landscape",
+     xaxt="n",yaxt="n")
+invisible(sapply(1:(dim(co)[1]), function(i) {
+  setSVGShapeToolTip(desc=V(g)$name[i])
+  points(co[i,1], co[i,2],bg=col[V(g)$name[i]],cex=1.5,pch=21)
+  }))
+dev.off()
+@
+<<GIlandscapeHairballHwriter,echo=FALSE,results='hide'>>=
+# Write a HTML webpage to access the SVG graphic
+Lpng = "GIlandscape-graph.png"
+Lpdf = "<center><a href=GIlandscape-graph.pdf>[pdf]</a> - <a href=GIlandscape-graph.svg>[svg]</a></center>"
+M = sprintf("%s<br>%s",hwriteImage(Lpng,table=FALSE),Lpdf)
+
+file.copy(system.file(file.path("images","hwriter.css"),package="hwriter"),file.path(resultdir,"hwriter.css"))
+page = openPage(file.path(resultdir,"GIlandscape-index.html"),link.css="hwriter.css")
+hwrite(M, page=page)
+hwriteImage("GIlandscape-phenotypes.png",link="GIlandscape-phenotypes.pdf",page=page)
+closePage(page,splash=FALSE)
+@
+
+We zoom-in into some sub-graphs of the complete correlation graph. Therefore we select genes from mitosis, the translational machinary, and others that are highlighted in the paper.
+
+The first sub-graph contains mitatic genes and shows the relation of the APC/C to the proteasome.
+<<GIlandscapeHairballZoominA1>>=
+A =  SelectedClusters[c("APC/C","SAC","Centrosome / Mitotic spindle",
+                        "Condensin / Cohesin","26S Proteasome")]
+genesA = c("Arp10","fzy","vih","Klp61F","polo")
+gsubA = induced.subgraph(g, which(V(g)$name %in% c(unlist(A),
+                                                    genesA)))
+@
+
+Some clusters from the large hairball are subdivided in sub-clusters and obtain a new coloring. The sizes of the nodes and the gene names are increased.
+<<GIlandscapeHairballZoominA2>>=
+data("SelectedClustersComplexes",package="DmelSGI")
+V(gsubA)$color[which(V(gsubA)$name %in% SelectedClustersComplexes$gammaTuRC)] = "orange2"
+V(gsubA)$color[which(V(gsubA)$name %in% SelectedClustersComplexes$'Dynein/Dynactin')] = "yellow2"
+V(gsubA)$label = V(gsubA)$name
+V(gsubA)$size = 8
+V(gsubA)$label.cex = 0.4
+V(gsubA)$label.color = "#222222"
+E(gsubA)$color = "#777777"
+@
+
+The first sub-graph is plotted.
+<<GIlandscape-graph-zoomin-A>>=
+set.seed(38383)
+LA = layout.fruchterman.reingold(gsubA,params=list(area=121^2*40))
+plot(gsubA,layout=LA)
+@
+
+The second sub-graph contains ribosomal genes, signalling, and DNA repairs genes.
+<<GIlandscapeHairballZoominB1>>=
+B =  SelectedClusters[c("Tor signalling","Ribosomal biogenesis","RNA helicase",
+                        "Ribosomal biogenesis","RNA helicase",
+                        "DNA repair and apoptosis","Cell-cell signalling",
+                        "Vesicle trafficking and cytoskeleton")]
+B$'Tor signalling' = B$'Tor signalling'[!(B$'Tor signalling' %in% 
+                                          c("trc","InR","gig","Tsc1","Pten"))]
+genesB = c("Dbp45A","hpo","14-3-3epsilon",
+           "CG32344", "CG9630", "kz", "pit", "Rs1","CG8545","twin")
+gsubB = induced.subgraph(g, which(V(g)$name %in% c(unlist(B),
+                                                  genesB)))
+@
+
+Some clusters from the large hairball are subdivided in sub-clusters and obtain a new coloring. The sizes of the nodes and the gene names are increased.
+<<GIlandscapeHairballZoominB2>>=
+PolI = c("CG3756","l(2)37Cg","RpI1","RpI12","RpI135","Tif-IA")
+PolIII = c("Sin","RpIII128","CG5380","CG12267","CG33051","CG7339")
+V(gsubB)$color[which(V(gsubB)$name %in% PolI)] = "orange2"
+V(gsubB)$color[which(V(gsubB)$name %in% PolIII)] = "yellow2"
+
+V(gsubB)$label = V(gsubB)$name
+V(gsubB)$size = 8
+V(gsubB)$label.cex = 0.4
+V(gsubB)$label.color = "#222222"
+E(gsubB)$color = "#777777"
+@
+
+The second sub-graph is plotted.
+<<GIlandscape-graph-zoomin-B>>=
+set.seed(122138)
+LB = layout.fruchterman.reingold(gsubB,params=list(area=121^2*40))
+plot(gsubB,layout=LB)
+@

@@ -1,0 +1,364 @@
+\section{Pairwise interaction scores}
+\label{Pairwise}
+<<PIscoresLibrary,message=FALSE,results='hide'>>=
+library("DmelSGI")
+library("RColorBrewer")
+
+basedir = getBaseDir()
+resultdir = file.path( basedir, "result", "PairwiseInteractionScores")
+dir.create(resultdir, recursive = TRUE,showWarnings=FALSE)
+
+data("datamatrix", package="DmelSGI")
+@
+Pairwise interaction scores were computed from $Y_{ijklm}$ for the \Sexpr{dim(datamatrix$D)[5]} features
+selected in Section~\ref{secFeatureSelection} by robust fit of a linear model. First, \emph{main effects}
+were estimated by minimizing
+\begin{equation}\label{eq:maineffects}
+   \begin{split}
+\left( \hat{w}_m, \hat{\mu}_{ijm}, \hat{\nu}_{klm} \right) =
+\arg\min \sum_{ijkl}
+\lVert  Y_{ijklm} - w_m - \mu_{ijm} - \nu_{klm}  \rVert_1 \\
+\quad\quad\text{ s.t. }
+\sum_{i\in\text{neg}}\mu_{ijm}=0
+\text{ and }
+\sum_{k\in\text{neg}}\nu_{klm}=0
+  \end{split}
+\end{equation}
+Here, $\mu_{ijm}$ represents the effect on feature $m$ of single knock
+down of dsRNA $j$ for target gene $i$, $\nu_{klm}$ represents the
+effect on feature $m$ of single knock down of dsRNA $l$ for query
+gene $k$ and $w_m$ represents the baseline value of feature $m$.
+Separate estimates according to (\ref{eq:maineffects}) were computed
+for each experimental batch, to let the parameters $\hat{w}_m$,
+$\hat{\mu}_{ijm}$, $\hat{\nu}_{klm}$ absorb small but detectable
+technical variation that was associated with the batches.
+%
+The baseline effect $w_m$ was estimated using the negative controls for
+query and target genes. Negative controls were available on each target
+plate as well as a query in each batch.
+
+Pairwise interaction scores were computed by subtracting the
+prediction from the non-interaction model from the observed values:
+\begin{equation}
+\pi_{ijklm} = Y_{ijklm}-\hat{w}_m - \hat{\mu}_{ijm} - \hat{\nu}_{klm}
+\end{equation}
+
+To summarize the four measurements for each gene pair $(i, k)$,
+corresponding to the four dsRNA combinations of $j= 1,2$ and $l=1,2$,
+the four values were tested against the null hypothesis that the
+interaction score is zero. $p$-values were computed by the moderated $t$-test
+implemented in the R package
+\Rpackage{limma}. The $p$-values were adjusted for multiple testing by the
+method of Benjamini-Hochberg~\cite{BH:1995}. A cut-off of 0.01 for the false discovery rate was chosen
+for all subsequent analyses that required the selection or reporting of pairwise
+genetic interactions.
+
+\subsection{Double knockdown examples}
+\label{secExamplePhenotypesDoubleKD}
+
+<<PIscoresExamplePhenotypesDoubleKDdata>>=
+data("mainEffects",package="DmelSGI")
+data("pimatrix",package="DmelSGI")
+@
+
+<<PIscoresExamplePhenotypesDoubleKD>>=
+examples = data.frame(
+  ph = c("area","mitoticIndex"),
+  targetGenes = c("FBgn0014020","FBgn0033029"),
+  queryGenes=c("FBgn0030276","FBgn0261456"),
+  stringsAsFactors=FALSE)
+
+Effects = array(0, dim=c(nrow(examples), 4, nrow(pimatrix$Anno$phenotype)))
+for (i in seq_len(nrow(examples))) {
+  I = match(examples$targetGenes[i], pimatrix$Anno$target$TID)
+  J = match(examples$queryGenes[i],    pimatrix$Anno$query$TID)
+  B = pimatrix$Anno$query$Batch[J]
+  TP = pimatrix$Anno$target$TargetPlate[I]
+  Effects[i,1,] = apply(mainEffects$target[I,,B,],2,
+                        mean, na.rm=TRUE)
+  Effects[i,2,] = apply(mainEffects$query[J,,TP,],  2,
+                        mean, na.rm=TRUE)
+  Effects[i,3,] = Effects[i,1,] + Effects[i,2,]
+  Effects[i,4,] = apply(pimatrix$D[I,,J,,],3,mean) + Effects[i,3,]
+}
+
+for (i in seq_len(nrow(examples))) {
+  tg = pimatrix$Anno$target$Symbol[match(examples$targetGenes[i],pimatrix$Anno$target$TID)]
+  qg = pimatrix$Anno$query$Symbol[match(examples$queryGenes[i],
+                                     pimatrix$Anno$query$TID)]
+  pdf(file.path(resultdir,sprintf("ExamplePhenotypes-doubleKD-%s-%s.pdf",
+              tg,qg)),height=8)
+  par(mfrow=c(1,2),mar=c(18,3,3,0.2))
+  K=1
+  bp = barplot(Effects[i,,K],main="number cells",
+               col=brewer.pal(3,"Pastel1")[1],cex.main=2,cex.axis=1.5)
+  abline(h=0.0)
+  lines(c(bp[4]-0.5,bp[4]+0.5),c(Effects[i,3,K],Effects[i,3,K]))
+  arrows(x0=bp[4],Effects[i,3,K],x1=bp[4],Effects[i,4,K],code=3,
+         length=min(0.25,abs(Effects[i,4,K] - Effects[i,3,K])))
+  axis(side=1,at=bp,labels=c(sprintf("%s+ctrl.",tg),
+                             sprintf("%s+ctrl.",qg),"expected",
+                             sprintf("%s+%s",tg,qg)),col=NA,cex.axis=1.8,las=2)
+  if (examples$ph[i] == "area") {
+    K = 5
+  } else {
+    K = 2
+  }
+  bp = barplot(Effects[i,,K],main=ifelse(K==2,"mitotic index","nuclear area"),
+               col=brewer.pal(3,"Pastel1")[2],cex.main=2,cex.axis=1.5)
+  abline(h=0.0)
+  lines(c(bp[4]-0.5,bp[4]+0.5),c(Effects[i,3,K],Effects[i,3,K]))
+  arrows(x0=bp[4],Effects[i,3,K],x1=bp[4],Effects[i,4,K],code=3)
+  axis(side=1,at=bp,labels=c(sprintf("%s + ctrl.",tg),
+                             sprintf("%s + ctrl.",qg),"expected",
+                             sprintf("%s + %s",tg,qg)),col=NA,
+       cex.axis=1.8,las=2)
+  dev.off()
+}
+
+@
+
+\begin{center}
+\includegraphics[width=0.3\textwidth]{result/PairwiseInteractionScores/ExamplePhenotypes-doubleKD-Rho1-Dlic.pdf}\\
+\includegraphics[width=0.3\textwidth]{result/PairwiseInteractionScores/ExamplePhenotypes-doubleKD-Not3-hpo.pdf}
+\end{center}
+
+<<PIscoresExamplePhenotypesDoubleKDSWISNFdata>>=
+data("Interactions", package="DmelSGI")
+
+f = "4x.count"
+names = c("mor","brm","Bap60","Snr1","osa")
+@
+
+<<PIscoresExamplePhenotypesDoubleKDSWISNF,resize.width="0.4\\textwidth",fig.width=6,fig.height=4.5>>=
+bp=barplot(Interactions$piscore[names, "RasGAP1", f],
+           ylim=c(-0.6,0.6),ylab=sprintf("pi-score (%s)",hrNames(f)),
+           las=2,cex.axis=1.5,cex.names=1.5,cex.lab=1.5,yaxp=c(-0.5,0.5,2))
+abline(h=0)
+@
+
+\subsection{Main result table}\label{mainResultTable}
+
+<<PIscoresMainResultTable1>>=
+library("DmelSGI")
+
+data("Interactions",package="DmelSGI")
+@
+
+<<PIscoresMainResultTable2>>=
+PI = Interactions$piscore
+PADJ = Interactions$padj
+PI[is.na(PADJ)] = NA
+@
+The 3-dimensional arrays of $\pi$-scores and adjusted p-values are
+reshaped to a 2-dimensional matrix with one column per phenotypic
+feature. 
+<<PIscoresMainResultTable3>>=
+dim(PI) = c(prod(dim(PI)[1:2]),dim(PI)[3])
+dim(PADJ) = c(prod(dim(PADJ)[1:2]),dim(PADJ)[3])
+@ 
+
+The two matrices are merged in a way such that $\pi$-scores and
+adjusted p-values are interlaced and the two columns per features are
+next to each other.
+<<PIscoresMainResultTable4>>=
+V = cbind(PI, PADJ)
+V = V[,rep(seq_len(dim(PI)[2]),each=2)+rep(c(0,dim(PI)[2]),times=dim(PI)[2])]
+colnames(V) = sprintf("%s.%s",rep(c("pi-score","padj"),times=dim(PI)[2]),
+        rep(hrNames(Interactions$Anno$phenotype$phenotype),
+                          each=2))
+@ 
+
+Annotation of the target and query gene names are added to the table. The table is written to a text file.
+<<PIscoresMainResultTable5>>=
+target =       rep(Interactions$Anno$target$Symbol,
+                   times=dim(Interactions$piscore)[2])
+query =        rep(Interactions$Anno$query$Symbol,
+                   each=dim(Interactions$piscore)[1])
+
+df =  data.frame(targetGene=target, 
+                 queryGene=query, 
+                 V)
+
+write.table(df, file=file.path(resultdir,"interactions.txt"),sep="\t",
+            row.names=FALSE,quote=FALSE)
+@
+
+\subsection{Comparison of main effects across different phenotypes}
+\label{secGIQualityControlMainEffectsAcrossPhenotypes}
+
+Average main effects (single knockdown effects) over dsRNA designs and batches.
+
+<<PIscoresGIQualityControlMainEffectsAcrossPhenotypes>>=
+data("mainEffects", package="DmelSGI")
+D = apply(mainEffects$target, c(1,4), mean, na.rm=TRUE)
+colnames(D) = hrNames(colnames(D))
+@
+
+Scatter plots of target main effects for the first 11 features selected by stability.
+<<PIscoresGIQualityControl-mainEffects-Features1-11,resize.width="0.7\\textwidth",fig.width=11.5,fig.height=11.5>>=
+par(mar=c(0.2,0.2,0.2,0.2))
+pairs(D[,1:11],pch=20,cex=0.5)
+@
+
+Scatter plots of target main effects for the features 12 to 21 selected by stability (and number of nuclei for comparison).
+<<PIscoresGIQualityControl-mainEffects-Features12-21,resize.width="0.7\\textwidth",fig.width=11.5,fig.height=11.5>>=
+par(mar=c(0.2,0.2,0.2,0.2))
+pairs(D[,c(1,12:21)],pch=20,cex=0.5)
+@
+
+\subsection{Comparison of main effects across batches}
+\label{secGIQualityControlMainEffectsAcrossBatches}
+
+Average main effects of mitotic index (single knockdown effects) over dsRNA designs.
+
+<<PIscoresGIQualityControlMainEffectsAcrossBatches>>=
+data("mainEffects", package="DmelSGI")
+data("pimatrix", package="DmelSGI")
+D = apply(mainEffects$target[,,,2], c(1,3), mean, na.rm=TRUE)
+@
+
+Scatter plots of mitotic index target main effects (number of nuclei) for the 12 batches.
+<<PIscoresGIQualityControl-mainEffect-batches1to12,resize.width="0.7\\textwidth",fig.width=11.5,fig.height=11.5>>=
+par(mar=c(0.2,0.2,0.2,0.2))
+pairs(D,pch=20,cex=0.5)
+@
+
+Scatter plots of mitotic index single knock down effects (number of nuclei) for batches one and twelve.
+<<PIscoresGIQualityControl-mainEffect-batches1and12>>=
+par(mar=c(4.5,4.5,1,1))
+plot(D[,1],D[,12],pch=20,
+     xlab="mitotic index [glog] in batch 1",
+     ylab="mitotic index [glog] in batch 12",
+     main="",cex=1.5,cex.lab=2,cex.axis=2,cex.main=2)
+text(x=1,y=-2.0,sprintf("cor = %0.2f",cor(D[,3],D[,4])),cex=2)
+@
+
+\subsection{Comparison of pairwise interaction scores across different phenotypes}
+\label{secGIQualityControlPI}
+
+Load matrix of all pairwise interaction scores. Flatten dimension of genetic interaction cube along gene pairs.
+<<PIscoresGIQualityControlPIscoreAcrossPhenotypes1>>=
+data("Interactions", package="DmelSGI")
+D = Interactions$piscore
+dim(D) = c(prod(dim(D)[1:2]),dim(D)[3])
+colnames(D) = hrNames(Interactions$Anno$phenotype$phenotype)
+@
+
+Sample gene pairs to avoid overplotting.
+<<PIscoresGIQualityControlPIscoreAcrossPhenotypes2>>=
+set.seed(1043289201)
+S = sample(1:dim(D)[1],1000)
+D1 = D[S,]
+@
+
+Scatter plots of pairwise interaction scores for the first 11 features selected by stability.
+<<PIscoresGIQualityControl-piscore-Features1-11,resize.width="0.7\\textwidth",fig.width=11.5,fig.height=11.5>>=
+par(mar=c(0.2,0.2,0.2,0.2))
+pairs(D1[,1:11],pch=20,cex=0.5)
+@
+
+Scatter plots of pairwise interaction scores for the features 12 to 21 selected by stability (and number of nuclei for comparison).
+<<PIscoresGIQualityControl-piscore-Features12-21,resize.width="0.7\\textwidth",fig.width=11.5,fig.height=11.5>>=
+par(mar=c(0.2,0.2,0.2,0.2))
+pairs(D1[,c(1,12:21)],pch=20,cex=0.5)
+@
+
+Scatter plots of pairwise interaction scores for nr of nuclei and mitotic ratio and major axis. Subsample gene pairs to avoid overplotting.
+<<PIscoresGIQualityControlPIscoreAcrossPhenotypes3>>=
+set.seed(1043289201)
+S = sample(1:dim(D)[1],2000)
+D1 = D[S,]
+@
+<<PIscoresGIQualityControlPIscoreAcrossPhenotypes4>>=
+colnames(D1) = hrNames(colnames(D1))
+for (i in c(2,16)) {
+  X = D1[,c(1,i)]
+  pdf(file=file.path(resultdir,sprintf("GeneticInteractionQC-piscore-cellnumber-%s.pdf",
+                   gsub("[ ,()]","",colnames(X)[2]))))
+  s = mad(X[,2],na.rm=TRUE) / mad(X[,1],na.rm=TRUE)
+  r = max(abs(X[,1]),na.rm=TRUE)
+  r = c(-r,r)
+  X[which(X[,2] > s*r[2]),2] = s*r[2]
+  X[which(X[,2] < s*r[1]),2] = s*r[1]
+  par(mar=c(4.5,4.5,1,1))
+  plot(X[,2],X[,1],pch=20,
+       xlab=sprintf("pi-score (%s)",colnames(X)[2]),
+       ylab=sprintf("pi-score (%s)",colnames(X)[1]),
+       main="",cex=1.5,cex.lab=2,cex.axis=2,cex.main=2,xlim=s*r,ylim=r)
+  dev.off()
+  cat("correlation nrCells - ",dimnames(D1)[[2]][i]," = ",
+      cor(X[,2],X[,1],use="pairwise.complete"),"\n")
+}
+@
+
+\begin{center}
+\includegraphics[width=0.3\textwidth]{result/PairwiseInteractionScores/GeneticInteractionQC-piscore-cellnumber-mitoticindex.pdf}
+\includegraphics[width=0.3\textwidth]{result/PairwiseInteractionScores/GeneticInteractionQC-piscore-cellnumber-majoraxis.pdf}
+\end{center}
+
+For comparison the correlation of $\pi$-scores across replicates is computed.
+<<PIscoresGIQualityControlPIscoreAcrossPhenotypes5>>=
+data("pimatrix", package="DmelSGI")
+D = pimatrix$D
+D1 = (D[,1,,1,] + D[,1,,2,]) / 2.0
+D2 = (D[,2,,1,] + D[,2,,2,]) / 2.0
+dim(D1) = c(prod(dim(D1)[1:2]),dim(D1)[3])
+dim(D2) = c(prod(dim(D2)[1:2]),dim(D2)[3])
+colnames(D1) = colnames(D2) = hrNames(pimatrix$Anno$phenotype$phenotype)
+
+for (i in c(1,2,16)) {
+  cc = cor(D1[,i],D2[,i],use="pairwise.complete")
+  cat("correlation between replicates ",dimnames(D1)[[2]][i]," = ",cc,"\n")
+}
+@
+
+\subsection{Numbers of genetic interactions}
+\label{secGIQualityControlNrInteractions}
+
+The number of positive and negative pairwise interactions per phenotype at a false discovery rate of 0.01 is enumerated.
+<<PIscoresGIQualityControlPIscoreNumberInteractions1>>=
+data("Interactions", package="DmelSGI")
+p.value.cutoff = 0.01
+N = matrix(NA_integer_, nr=nrow(Interactions$Anno$phenotype), nc=2)
+colnames(N) = c("pos","neg")
+for (i in 1:nrow(Interactions$Anno$phenotype)) {
+  PI = Interactions$piscore[,,i]
+  N[i,2] = sum(PI[Interactions$padj[,,i] <= p.value.cutoff] > 0)
+  N[i,1] = sum(PI[Interactions$padj[,,i] <= p.value.cutoff] < 0)
+}
+@
+The number of interactions is converted in a fraction of interactions.
+<<PIscoresGIQualityControlPIscoreNumberInteractions2>>=
+N = N / prod(dim(Interactions$piscore)[1:2])
+@
+
+Fraction of genetically interacting gene pairs (p-adj <= 0.01) (blue: negative, yellow positive) for each selected feature are plotted.
+
+<<PIscoresGIQualityControl-nrOfInteractions,fig.width=7,fig.height=6>>=
+par(mar=c(15,5,0.5,0.5))
+barplot(t(N),col=c("cornflowerblue","yellow"),
+        names.arg=hrNames(Interactions$Anno$phenotype$phenotype),
+        las=2, ylab ="fraction of interactions",
+        cex.names=1.2,cex.axis=1.5,cex.lab=1.5)
+@
+
+The cumulative fraction of interactions over the phenotypes is computed.
+<<PIscoresGIQualityControlPIscoreNumberInteractions3>>=
+isinteraction = rep(FALSE, prod(dim(Interactions$piscore)[1:2]))
+Ncum = rep(NA_integer_, nrow(Interactions$Anno$phenotype))
+for (i in 1:nrow(Interactions$Anno$phenotype)) {
+  isinteraction[Interactions$padj[,,i] <= p.value.cutoff] = TRUE
+  Ncum[i] = sum(isinteraction) / prod(dim(Interactions$piscore)[1:2])
+}
+@
+
+The cumulative fraction of genetically interacting gene pairs (p-adj <= 0.01) for the selected features are plotted.
+
+<<PIscoresGIQualityControl-nrOfInteractionsCumulative,fig.width=7,fig.height=6>>=
+par(mar=c(15,5,0.5,0.5),xpd=NA)
+bp=barplot(Ncum, col=brewer.pal(3,"Pastel1")[2],
+        ylab="fraction of interactions",las=2,
+        names.arg = rep("",length(Ncum)),cex.axis=1.5,cex.lab=1.5)
+text(bp,-0.01,hrNames(Interactions$Anno$phenotype$phenotype),adj=c(1,0.5),srt=38,cex=1.2)
+@

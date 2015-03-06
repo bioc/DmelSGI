@@ -1,0 +1,139 @@
+\section{Mutli-phenotype genetic interaction cube}
+\label{secGeneticInteractionCube}
+
+<<GeneticInteractionCubeLoadLibrary,results='hide',message=FALSE>>=
+library("DmelSGI")
+library("grid")
+library("RColorBrewer")
+library("gplots")
+library("beeswarm")
+
+basedir = getBaseDir()
+resultdir = file.path( basedir, "result", "GeneticInteractionCube")
+dir.create(resultdir, recursive = TRUE,showWarnings=FALSE)
+
+dir.create(file.path("Figures","GeneticInteractionCube"), showWarnings=FALSE)
+@
+
+\subsection{Heatmap of genetic interaction cube}
+\label{secGeneticInteractionCubeHeatmap}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Heatmaps
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+<<GeneticInteractionCubeData>>=
+data("Interactions", package="DmelSGI")
+@
+
+$\pi$-scores are normalized through division by the median deviation to make them comparable across phenotypes. In this way $\pi$-scores are comparable to $z$-scores. \warning{Do not run the next code chunk. This will take quit a while. A hard coded result can be found in the overnext code chunk.}
+<<GeneticInteractionCubeNormalize1,eval=FALSE>>=
+data("pimatrix", package="DmelSGI")
+D = pimatrix$D
+D2 = aperm(D, c(1,3,2,4,5))
+dim(D2) = c(prod(dim(D2)[1:2]),prod(dim(D2)[3:4]),dim(D2)[5])
+
+SD = apply(D2,c(1,3),sd, na.rm=TRUE)
+MSD = apply(SD, 2, function(x) { median(x,na.rm=TRUE) } )
+@
+
+Hard coded result of the last code chunk.
+<<GeneticInteractionCubeNormalize2>>=
+MSD = c(0.0833528975114521, 0.134136618342975, 0.0498996012784751,
+0.204772216536139, 0.0142975582945938, 0.0428299793772605, 0.0576235314621808,
+0.0833934805305705, 0.0328437541652814, 0.147643254412127, 0.0866394118952878,
+0.140840565863283, 0.0154131573539473, 0.0286467941877466, 0.0496616658001497,
+0.0164694485385577, 0.233130597062897, 0.222961290060361, 0.00228512594775289,
+0.0773453995034531, 0.0892678802977647)
+
+D = Interactions$piscore
+for (i in 1:dim(D)[3]) {
+  D[,,i] = D[,,i] / MSD[i]
+}
+@
+
+The $\pi$-scores are colorcoded showing negative interactions in blue and positive interactions in yellow. $\pi$-scores between -2 and 2 are colored black. The color range is capped at -6 and 6.
+<<GeneticInteractionCubeCut>>=
+cuts = c(-Inf,
+         seq(-6, -2, length.out=(length(DmelSGI:::colBY)-3)/2),
+         0.0,
+         seq(2, 6, length.out=(length(DmelSGI:::colBY)-3)/2),
+         +Inf)
+@
+
+The three dimensions of the genetic interaction cube are ordered by hierarchical clustering.
+<<GeneticInteractionCubeHClust>>=
+ordTarget = orderDim(D, 1)
+ordQuery = orderDim(D, 2)
+ordFeat  = orderDim(D, 3)
+Ph = c("4x.intNucH7","4x.count","4x.LCD2", "4x.ratioMitotic",
+       "10x.meanNonmitotic.nucleus.DAPI.m.majoraxis", "4x.areaNucAll", 
+       "10x.meanNonmitotic.cell.Tub.m.eccentricity", 
+       "4x.areapH3All", "4x.intH3pH4")
+D1 = D[ordTarget, ordQuery, Ph]
+dimnames(D1)[[3]] = hrNames(dimnames(D1)[[3]])
+@
+
+The full heatmap of the three-dimensional genetic interaction cube is drawn (Blue: negative interactions, yellow: positive interactions).
+%<<GeneticInteractionCube-HeatmapFull,fig.width=10.16,fig.height=7.128>>=
+%fontsize = 0.75
+%myHeatmap(D1, cuts=cuts, fontsize=32*fontsize, col=DmelSGI:::colBY)
+%@
+%together with a color key.
+%<<GeneticInteractionCube-HeatmapColorkey,resize.width="0.1\\textwidth",fig.width=3,fig.height=1>>=
+%colorkey = matrix(cuts[2:512],nr=1)
+%rx = toRaster(colorkey, cuts = cuts, col = DmelSGI:::colBY)
+%pushViewport(viewport(y=unit(0.5,"npc"),just=c("center","bottom"),height=0.5,
+%                      xscale=c(-6,6),yscale=c(0,1)))
+%grid.rect()
+%grid.raster(rx,width=unit(1,"npc"),height=unit(1,"npc"))
+%grid.xaxis()
+%@
+
+\subsection{Comparison to DPiM}
+
+The data is loaded.
+<<GeneticInteractionCubeDPiMlibrary>>=
+library("DmelSGI")
+library("RColorBrewer")
+library("gplots")
+library("grid")
+data("Interactions",package="DmelSGI")
+data("FBgn2anno",package="DmelSGI")
+data("DPiM",package="DmelSGI")
+@
+
+The Pearson correlation coefficients between genetic interaction profiles are computed.
+<<GeneticInteractionCubeDPiMcor>>=
+PI = Interactions$piscore
+dim(PI) = c(dim(PI)[1],prod(dim(PI)[2:3]))
+C = cor(t(PI))
+row.names(C) = colnames(C) = Interactions$Anno$target$TID
+@
+
+Correlation coefficients are separated in two sets: gene pairs that are co-purified in the DPiM dataset \cite{guruharsha2011protein} and gene pairs that are not co-purified in this dataset.
+<<GeneticInteractionCubeDPiMsets>>=
+m1 = match(DPiM$interactions$Interactor_1, Interactions$Anno$target$TID)
+m2 = match(DPiM$interactions$Interactor_2, Interactions$Anno$target$TID)
+I = which(!is.na(m1) & !is.na(m2) & (m1 != m2))
+I = cbind(m1[I],m2[I])
+ccDPiM = C[I]
+Iall = upper.tri(C)
+Iall[I] = FALSE
+Iall[cbind(I[,2],I[,1])] = FALSE
+ccall = C[Iall]
+@
+
+The densities of correlation coefficients are plotted.
+<<GeneticInteractionCubeDPiM,fig.width=10,fig.height=4>>=
+par(mar=c(5,5,0.2,5),xpd=NA)
+
+d1 = density(ccDPiM, from=-1,to=1)
+d2 = density(ccall, from=-1,to=1)
+
+plot(d2, main="", col=brewer.pal(9, "Set1")[2],lwd=5,
+     xlab="correlation of interaction profiles",ylim=c(0,1.5),
+     cex.lab=1.8,cex.axis=1.8)
+lines(d1$x,d1$y,col=brewer.pal(9, "Set1")[1],lwd=5)
+legend("topleft",c("co-purified in DPiM","not captured by DPiM"),bty="n",
+       fill = brewer.pal(9, "Set1")[1:2],cex=1.8)
+@

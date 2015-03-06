@@ -1,0 +1,39 @@
+
+
+\section{Data access}\label{secDataAccess}
+
+The matrix of statistical genetic interactions can be loaded by 
+<<dataAcceess1,results='hide'>>=
+library("DmelSGI")
+data("Interactions", package="DmelSGI")
+@ 
+
+The element \Robject{Interactions\$piscore} of this data object is a 3-dimensional array of
+$\pi$-scores, \Robject{Interactions\$padj} is a 3-dimensional
+array of BH-adjusted p-values, and \Robject{Interactions\$Anno}
+contains annotation for target genes, query genes, and phenotypes.
+You can type
+<<dataAccess2,eval=FALSE>>=
+? Interactions
+@
+to see the documentation of this data object.
+
+%% Similarly, you can use
+%% the \Robject{?} operator to obtain help on any of the below data objects;
+%% The following datasets are available:
+%% \begin{itemize}
+%%   \item {\bf Interactions} The genetic interaction data ($\pi$-scores,
+%%     p-values, and annotation). {\bf This is the main data source of this package.}
+%%   \item {\bf featuresPerWell} The screen data in screen order.
+%%   \item {\bf datamatrixfull} The phenotype data of all pairwise genetic
+%%     perturbation experiments before quality control and feature selection.
+%%   \item {\bf QueryAnnotation} Annotation of all the query genes in the screen.
+%%   \item {\bf TargetAnnotation} Annotation of all target genes in the screen.
+%%   \item {\bf stabilitySelection} Results from the feature selection step.
+%%   \item {\bf datamatrix} The phenotype data of all pairwise genetic perturbation
+%%     experiments after quality control and feature selection.
+%%   \item {\bf mainEffects} Estimated main effects (single knock down effect).
+%%   \item {\bf nrOfInteractionsPerTarget} Number of interactions per target gene.
+%% \end{itemize}
+%% They are intermediate results of the analysis steps described in the
+%% following, precomputed and loadable for convenience. 

@@ -1,0 +1,423 @@
+\section{Directional epistatic interactions}
+\label{secDirectionalEpistaticInteractions}
+
+<<DirectionalInteractionsLibrary,results='hide',message=FALSE>>=
+library("DmelSGI")
+library("abind")
+library("igraph")
+
+basedir = getBaseDir()
+resultdir = file.path( basedir, "result", "DirectionalInteractions")
+dir.create(resultdir, recursive = TRUE,showWarnings=FALSE)
+
+data("Interactions", package="DmelSGI")
+data("pimatrix", package="DmelSGI")
+data("mainEffects", package="DmelSGI")
+data("SelectedClustersComplexes", package="DmelSGI")
+@
+
+\subsection{Inference of a directional, epistatic interactions}
+
+Extracting relevant $\pi$-scores and main effects.
+<<DirectionalInteractionsMainEffects>>=
+pi  = pimatrix$D
+mt  = mainEffects$target
+mq  = mainEffects$query
+@
+
+Standardize the features by their 1\%-99\% percentiles.
+
+<<DirectionalInteractionsNormalize>>=
+myrange = function(x) diff(quantile(x, probs=c(0.01, 0.99), na.rm=TRUE))
+featureSD = apply(pi, 5, myrange)
+for(k in seq(along=featureSD)){
+  pi[,,,,k] = pi[,,,,k]/featureSD[k]
+  mt[,,,k]  = mt[,,,k]/featureSD[k]
+  mq[,,,k]  = mq[,,,k]/featureSD[k]
+}
+@
+
+Nested loops over target genes, target dsRNA designs, query genes, and query dsRNA designs. For each reagent pair, the $\pi$-score vector over all 21 phenotypes is fitted by a linear model as a function of the target main effects and query main effects. The analysis of variance (anova) reports the fraction of variance that is described by the two main effects.
+
+<<DirectionalInteractionsRearrage>>=
+data = array(NA_real_, dim=c(21, 3, dim(pi)[1:4]))
+for(it in seq_len(dim(pi)[1])) {
+  targetplate = pimatrix$Anno$target$TargetPlate[ it ]
+  for(dt in seq_len(dim(pi)[2])) {
+    for(iq in seq_len(dim(pi)[3])) {
+      batch = pimatrix$Anno$query$Batch[iq]
+      xt = mt[it, dt, batch, ]
+      for(dq in seq_len(dim(pi)[4])) {
+        y    = pi[it, dt, iq, dq, ]
+        xq   = mq[iq, dq, targetplate, ]
+        nay  = sum(is.na(y))
+        naxq = sum(is.na(xq))
+        if((nay>1)||(naxq>1)) {
+        } else {
+          data[, 1, it, dt, iq, dq] = xt
+          data[, 2, it, dt, iq, dq] = xq
+          data[, 3, it, dt, iq, dq] = y
+        } # else
+      }
+    }
+  }
+}
+
+dimnames(data) = list(pimatrix$Anno$phenotype$phenotype,
+                      c("xt","xq","pi"),
+                      pimatrix$Anno$target$Symbol,
+                      1:2,
+                      pimatrix$Anno$query$Symbol,
+                      1:2)
+
+@
+
+<<DirectionalInteractionsFit,eval=FALSE>>=
+resCoef = array(NA_real_, dim=c(3, dim(pi)[1:4]))
+resSq = array(NA_real_, dim=c(3, dim(pi)[1:4]))
+resPV = array(NA_real_, dim=c(2, dim(pi)[1:4]))
+for(it in seq_len(dim(pi)[1])) {
+  for(dt in seq_len(dim(pi)[2])) {
+    for(iq in seq_len(dim(pi)[3])) {
+      for(dq in seq_len(dim(pi)[4])) {
+        if (all(is.finite(data[, , it, dt, iq, dq]))) {
+          model = lm(data[,3,it,dt,iq,dq] ~ 
+                       data[,1,it,dt,iq,dq]+data[,2,it,dt,iq,dq])
+          a = anova(model)
+          resCoef[, it, dt, iq, dq] = model$coefficients
+          resSq[1, it, dt, iq, dq] = a[1,2]
+          resSq[2, it, dt, iq, dq] = a[2,2]
+          resSq[3, it, dt, iq, dq] = a[3,2]
+          resPV[1, it, dt, iq, dq] = a[1,5]
+          resPV[2, it, dt, iq, dq] = a[2,5]
+        } # else
+      }
+    }
+  }
+}
+
+dimnames(resCoef) = list(c("const","xt","xq"),
+                   pimatrix$Anno$target$Symbol,
+                   1:2,
+                   pimatrix$Anno$query$Symbol,
+                   1:2)
+
+dimnames(resSq) = list(c("xt","xq","res"),
+                         pimatrix$Anno$target$Symbol,
+                         1:2,
+                         pimatrix$Anno$query$Symbol,
+                         1:2)
+
+dimnames(resPV) = list(c("xt","xq"),
+                         pimatrix$Anno$target$Symbol,
+                         1:2,
+                         pimatrix$Anno$query$Symbol,
+                         1:2)
+
+fitepistasis = list(Coef = resCoef, Sq = resSq)
+# save(fitepistasis, file="fitepistasis.rda")
+@
+
+The precomputed data from the last code chunk is loaded.
+<<DirectionalInteractionsLoadFit,results='hide'>>=
+data("fitepistasis", package="DmelSGI")
+@
+
+The data for a directional epistatic interaction between Cdc23 and sti is shown for two phenotypes. Cdc23 is epistatic to sti.
+<<DirectionalInteractions-example2pheno-sti-Cdc23,fig.width=5*1.3,fig.height=4*1.3>>=
+plot2Phenotypes(data,"sti","Cdc23",1,5,lwd=3,cex.axis=1.3,cex.lab=1.3,cex=1.3)
+@
+
+The data for a directional epistatic interaction between Cdc23 and sti is shown for all phenotypes.
+
+<<DirectionalInteractions-example21pheno-sti-Cdc23,fig.width=8,fig.height=4>>=
+plotPIdata(data,"sti","Cdc23",cex.axis=1.3,cex.lab=1.3)
+@
+
+A directional epistatic network is derived from the linear model fits. The explained variance is converted in a fraction of explained variance.
+<<DirectionalInteractionsResSQ>>=
+resSq = fitepistasis$Sq
+x = apply(resSq,2:5,sum, na.rm=TRUE)
+resSq[1,,,,] = resSq[1,,,,] / x
+resSq[2,,,,] = resSq[2,,,,] / x
+resSq[3,,,,] = resSq[3,,,,] / x
+@
+
+Since target main effets show a better fit than query main effects, we applied different thresholds for target and query main effects to obtain equal chances of selection. For both, target and query main effects, we define a lower and a higher threshold as a 10\% and 95\% quantile. 
+<<DirectionalInteractionsTH>>=
+NSIG = (apply(Interactions$padj <= 0.01,1:2,sum,na.rm=TRUE))
+SQ = apply(resSq[,,,,], c(1,2,4),mean,na.rm=TRUE)
+Coef = apply(fitepistasis$Coef[,,,,], c(1,2,4),mean,na.rm=TRUE)
+
+thT = quantile(as.vector(SQ["xt",,]),probs=c(0.1,0.95))
+thQ = quantile(as.vector(SQ["xq",,]),probs=c(0.1,0.95))
+@
+
+We report a directional epistatic interaction from target to query, if the target main effect explains less than \Sexpr{sprintf("%0.2f%%",100*thT[1])}
+ and the query main effect explains more than \Sexpr{sprintf("%0.2f%%",100*thQ[2])} of the total variance. With these thresholds we extract an edge list for the directional epistatic interaction.
+
+<<DirectionalInteractionsEdges>>=
+IT = which((NSIG >= 1) & (SQ["xt",,] > thT[2]) & (SQ["xq",,] < thQ[1]),arr.ind=TRUE)
+IQ = which((NSIG >= 1) & (SQ["xq",,] > thQ[2]) & (SQ["xt",,] < thT[1]),arr.ind=TRUE)
+IT = cbind(Interactions$Anno$target$Symbol[IT[,1]],
+           Interactions$Anno$query$Symbol[IT[,2]])
+IQ = cbind(Interactions$Anno$target$Symbol[IQ[,1]],
+           Interactions$Anno$query$Symbol[IQ[,2]])
+
+ET = data.frame(geneFrom = IT[,2], geneTo = IT[,1],
+                sign = sign((Coef["xt",,])[IT]),
+                coef = (Coef["xt",,])[IT],
+                coefRev = NA,
+                sqFrom = (SQ["xq",,])[IT],
+                sqTo = (SQ["xt",,])[IT],
+                mode = "target",
+                stringsAsFactors=FALSE)
+ITREV = cbind(IT[,2],IT[,1])
+B = (ITREV[,1] %in% dimnames(Coef)[[2]]) &
+  (ITREV[,2] %in% dimnames(Coef)[[3]])
+ET$coefRev[B] = (Coef["xq",,])[ITREV[B,]]
+EQ = data.frame(geneFrom = IQ[,1], geneTo = IQ[,2],
+                sign = sign((Coef["xq",,])[IQ]),
+                coef = (Coef["xq",,])[IQ],
+                coefRev = NA,
+                sqFrom = (SQ["xt",,])[IQ],
+                sqTo = (SQ["xq",,])[IQ],
+                mode = "query",
+                stringsAsFactors=FALSE)
+IQREV = cbind(IQ[,2],IQ[,1])
+B = (IQREV[,1] %in% dimnames(Coef)[[2]]) &
+  (IQREV[,2] %in% dimnames(Coef)[[3]])
+EQ$coefRev[B] = (Coef["xt",,])[IQREV[B,]]
+edges = rbind(ET,EQ)
+edges$color = ifelse(edges$sign<0, "dodgerblue", "crimson")
+@
+
+We remove contradicting edges from the list.
+
+<<DirectionalInteractionsKey>>=
+key = sprintf("%s__%s",edges$geneFrom,edges$geneTo)
+k = key[duplicated(key)]
+g = tapply(edges$sign[key %in%  k],key[key %in%  k], function(x) { 
+  length(unique(x)) > 1})
+if (any(g)) {
+  cat(sum(key %in% names(which(g))),
+      " edges with contraditing sign are removed.\n")
+  edges = edges[!(key %in% names(which(g))),]
+}
+key = sprintf("%s__%s",edges$geneFrom,edges$geneTo)
+edges = edges[!duplicated(key),]
+  
+key = sprintf("%s__%s",edges$geneFrom,edges$geneTo)
+key2 = sprintf("%s__%s",edges$geneTo,edges$geneFrom)
+if (any(key %in% key2)) {
+  cat(sum(key %in% key2)," edges with contraditing direction are removed.\n")
+  edges = edges[!((key %in% key2) | (key2 %in% key)),]
+}
+@
+
+\subsection{A table of all directional interactions}
+We identified in total \Sexpr{nrow(edges)} directional epistatic interactions, thereof are \Sexpr{ sum(edges$sign == 1) } aggravating and \Sexpr{ sum(edges$sign == -1) } alleviating interactions.
+
+<<DirectionalInteractionsTable>>=
+E = data.frame(edges[,c("geneFrom","geneTo")],
+               effect=ifelse( edges$sign == 1, "aggravating", "alleviating"))
+write.table(E, file=file.path(resultdir,"DirectionalEpistaticInteractions.txt"),
+            sep="\t",row.names=FALSE,quote=FALSE)
+
+@
+
+\subsection{An directional epistatic network for mitosis.}
+
+<<DirectionalInteractionsSelectedClusters>>=
+SelectedClustersComplexes = 
+  SelectedClustersComplexes[c("Cytokinesis","Condensin/Cohesin",
+                              "SAC","Apc/C","gammaTuRC","Dynein/Dynactin")]
+SelectedClustersComplexes$'Dynein/Dynactin' = c(SelectedClustersComplexes$'Dynein/Dynactin',
+                                                "Klp61F")
+SelectedClustersComplexes$polo = "polo"
+SelectedClustersComplexes[["vih"]] = "vih"
+SelectedClustersComplexes[["Elongin-B"]] = "Elongin-B"
+SelectedClustersComplexes[["Skp2"]] = "Skp2"
+
+QG = unlist(SelectedClustersComplexes)
+edges2 = edges
+edges2 = edges2[(edges2$geneFrom %in% QG) & (edges2$geneTo %in% QG),]
+nodes2 = list()
+for (cl in names(SelectedClustersComplexes)) {
+  nodes2[[cl]] = unique(c(edges2$geneFrom, edges2$geneTo))
+  nodes2[[cl]] = nodes2[[cl]][nodes2[[cl]] %in% 
+                                  SelectedClustersComplexes[[cl]] ]
+}
+cat(sprintf("Writing graph with %d nodes and %d edges.\n", 
+            length(nodes2), nrow(edges2)))
+  
+out = c("digraph DirectionalInteractions {",
+        paste("graph [size=\"10,10\" ratio=0.35 mode=major outputorder=edgesfirst overlap=false",
+        "rankdir = \"LR\"];",sep=" "),
+        "graph [splines=true];")
+@
+
+Some dummy nodes are inserted to better separate the complexes.
+<<DirectionalInteractionsDF>>=
+de = data.frame(
+  from=c("CG31687","xxx","CG31687","xxx","Gl","xxx4","xxx4","rod","abcd1","polo","Grip75",
+         "xxx2","Bub3","xxx3","Grip84","feo","xxx5","Apc10"),
+  to  =c("xxx","cenB1A","xxx","Elongin-B","xxx4","Cdc23","vih","polo","polo","feo","xxx2",
+         "Bub3","xxx3","Klp61F","polo","xxx5","glu","sti"),
+  stringsAsFactors=FALSE)
+for (i in seq_len(nrow(de))) {
+  out <- c(out, rep(sprintf("\"%s\" -> \"%s\" [style=invis];",de$from[i],de$to[i]),5))
+}
+dg = c(de$from,de$to)
+dg = unique(dg[!(dg %in% Interactions$Anno$target$Symbol)])
+out <- c(out, sprintf("%s [style=invis]\n",dg))
+@
+
+<<DirectionalInteractions-Mitosis>>=
+  out <- c(out,
+#           "newrank=true;",
+#           "1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 [style=invis];",
+        sprintf("\"%s\" -> \"%s\" [color=\"%s\" penwidth=3 arrowsize=2];",
+                edges2$geneFrom, edges2$geneTo, edges2$color))
+for (cl in seq_along(SelectedClustersComplexes)) {
+  out = c(out,sprintf("subgraph cluster%s {",LETTERS[cl]))
+  out = c(out,
+          sprintf(paste("\"%s\" [label=\"%s\" shape=ellipse style=filled fillcolor=\"%s\"",
+                  "labelfontsize=%d margin=\"0.02,0.02\" tooltip=\"%s\"];"),
+                  nodes2[[cl]], nodes2[[cl]], 
+                  "#F5ECE5",
+                  20, nodes2[[cl]]))
+  out = c(out, sprintf("label=\"%s\";",names(SelectedClustersComplexes)[cl]))
+  out = c(out," }")
+}
+out = c(out,"}")
+
+file = file.path(resultdir,"DirectionalInteractions-Mitosis")
+writeLines(out, con=sprintf("%s.dot",file) )
+@
+
+If you have installed graphviz on your computer, you can now run dot to generate the figure.
+<<DirectionalInteractions-Mitosis-dot, eval=FALSE>>=
+system(sprintf("dot %s.dot -Tpdf -o%s.pdf",file,file))
+@
+
+\begin{center}
+\includegraphics[width=0.95\textwidth]{../inst/preComputedFigures/DirectionalInteractions-Mitosis.pdf}
+\end{center}
+
+<<DirectionalInteractions-Mitosis-plots,resize.width="0.24\\textwidth",fig.show='hold',fig.width=4,fig.height=4>>=
+plot2Phenotypes(data,"polo","Grip84",2,3,lwd=1,cex.axis=0.5,cex.lab=0.5,cex=0.5,length = 0.1)
+plot2Phenotypes(data,"BubR1","Elongin-B",5,19,lwd=1,cex.axis=0.5,cex.lab=0.5,cex=0.5,length = 0.1)
+plot2Phenotypes(data,"rod","SMC2",1,4,lwd=1,cex.axis=0.5,cex.lab=0.5,cex=0.5,length = 0.1)
+plot2Phenotypes(data,"Cdc23","SMC2",1,4,lwd=1,cex.axis=0.5,cex.lab=0.5,cex=0.5,length = 0.1)
+plot2Phenotypes(data,"Klp61F","Cdc16",1,2,lwd=1,cex.axis=0.5,cex.lab=0.5,cex=0.5,length = 0.1)
+plot2Phenotypes(data,"ald","l(1)dd4",4,19,lwd=1,cex.axis=0.5,cex.lab=0.5,cex=0.5,length = 0.1)
+plot2Phenotypes(data,"ald","Dlic",2,19,lwd=1,cex.axis=0.5,cex.lab=0.5,cex=0.5,length = 0.1)
+@
+
+\subsection{Subgraphs of the directional network}
+Draw some small examples of directional epistatic networks.
+
+<<DirectionalInteractionsExamples,fig.show='hold',resize.width="0.3\\textwidth",fig.width=10,fig.height=10,eval=FALSE>>=
+Genes = list("sti"=c("sti","Cdc23"),
+             "RasGAP1" = c("RasGAP1", "dalao", "Snr1", "osa","brm", "mor",
+                           "Bap60", "Dsor1", "Pvr", "Sos", "pnt"))
+
+for (g in seq_along(Genes)) {
+  QG = Genes[[g]]
+
+  edges2 = edges
+  edges2 = edges2[(edges2$geneFrom %in% QG)  & (edges2$geneTo %in% QG),]
+  cat(sprintf("Writing graph with %d nodes and %d edges.\n", length(nodes2), nrow(edges2)))
+  edges2$color[edges2$color == "crimson"] = "#DB1D3D"
+  edges2$color[edges2$color == "dodgerblue"] = "#4C86C6"
+  edges2$width = 5
+  edges2$arrow.size = 2
+
+  genes = data.frame(gene = unique(c(edges2$geneFrom,edges2$geneTo)),stringsAsFactors=FALSE)
+  genes$color = rep("#F5ECE5",nrow(genes))
+  genes$frame.color = NA
+  genes$label.color = "black"
+  genes$label.cex=1.3
+  genes$size=50
+  g = graph.data.frame(edges2,vertices = genes)
+
+  set.seed(3122)
+  plot(g)
+}
+@
+
+<<DirectionalInteractions-SWISNF-plots,resize.width="0.24\\textwidth",fig.show='hold',fig.width=4,fig.height=4>>=
+plot2Phenotypes(data,"Snr1","RasGAP1",1,5,lwd=2,cex.axis=1,cex.lab=1,cex=1,length = 0.2)
+plot2Phenotypes(data,"Snr1","RasGAP1",1,13,lwd=2,cex.axis=1,cex.lab=1,cex=1,length = 0.2)
+plot2Phenotypes(data,"brm","RasGAP1",1,5,lwd=2,cex.axis=1,cex.lab=1,cex=1,length = 0.2)
+plot2Phenotypes(data,"brm","RasGAP1",1,13,lwd=2,cex.axis=1,cex.lab=1,cex=1,length = 0.2)
+plot2Phenotypes(data,"mor","RasGAP1",1,5,lwd=2,cex.axis=1,cex.lab=1,cex=1,length = 0.2)
+plot2Phenotypes(data,"mor","RasGAP1",1,13,lwd=2,cex.axis=1,cex.lab=1,cex=1,length = 0.2)
+@
+
+\subsection{Directional interactions of recurrently mutated genes}
+
+<<DirectionalInteractionsLoadDI,fig.show='hold',resize.width="0.29\\textwidth",fig.width=7,fig.height=7,eval=FALSE>>=
+data("TID2HUGO", package="DmelSGI")
+data("Interactions", package="DmelSGI")
+HugoNames = sapply(TID2HUGO, function(x) {
+  if(length(x) > 0) {
+    j=0
+    for (i in 1:nchar(x[1])) {
+      if (length(unique(substr(x,1,i))) == 1) {
+        j=i
+      }
+    }
+    res = paste(substr(x,1,j)[1],paste(substr(x,j+1,nchar(x)),collapse="/"),sep="")
+  } else {
+    res = ""
+  }
+  res
+})
+HugoNames = paste(Interactions$Anno$target$Symbol," (",HugoNames,")",sep="")
+names(HugoNames) = Interactions$Anno$target$Symbol
+
+
+data("Intogen", package="DmelSGI")
+
+SelCancer = sapply(TID2HUGO, function(x) { any(x %in% Intogen$symbol) })
+SelCancer = Interactions$Anno$target$Symbol[which(Interactions$Anno$target$TID %in%
+                                                    names(which(SelCancer)))]
+
+Genes = list("Pten" = c("Pten","gig"),
+             "Arp3" = c("Arp3","Sos"),
+             "Myb" = c("Myb","mip120","mip130","polo","fzy","Elongin-B","CtBP",
+                       "sti","pav","tum","feo","Rho1","dia","scra","SMC4"),
+             "nonC" = c("nonC","spen"),
+             "Nup75" = c("Nup75","Sin3A","CtBP","jumu","RecQ4"))
+
+for (g in seq_along(Genes)) {
+  QG = Genes[[g]]
+
+  edges2 = edges
+  edges2 = edges2[(edges2$geneFrom %in% QG)  & (edges2$geneTo %in% QG),]
+  edges2 = edges2[(edges2$geneFrom %in% QG[1])  | (edges2$geneTo %in% QG[1]),]
+  cat(sprintf("Writing graph with %d nodes and %d edges.\n", length(nodes2), nrow(edges2)))
+  edges2$color[edges2$color == "crimson"] = "#DB1D3D"
+  edges2$color[edges2$color == "dodgerblue"] = "#4C86C6"
+  edges2$width = 5
+  edges2$arrow.size = 2
+  
+  genes = data.frame(gene = unique(c(edges2$geneFrom,edges2$geneTo)),stringsAsFactors=FALSE)
+  genes$color = rep("#DDDDDC",nrow(genes))
+  genes$color[genes$gene %in% SelCancer] = "#777777"
+  genes$frame.color = NA
+  genes$label.color = "black"
+  genes$label.cex=1.5
+  genes$size=50
+  g = graph.data.frame(edges2,vertices = genes)
+  V(g)$name = HugoNames[V(g)$name]
+
+  set.seed(3122)
+  plot(g)
+  legend("bottomright", inset = c(-0.07,-0.07),fill=c("#777777", "#DDDDDC"), 
+        c("genes recurrently mutated in cancer","not recurrently mutated"),cex=0.5)
+}
+
+@

@@ -1,0 +1,130 @@
+%\VignetteIndexEntry{DmelSGI}
+%\VignettePackage{DmelSGI}
+%\VignetteEngine{knitr::knitr}
+\documentclass[10pt,a4paper,oneside]{article}
+
+\usepackage{amsfonts,amsmath,amstext,amssymb,amscd}
+% \usepackage{subfig}
+
+\newenvironment{packeditemize}{
+\begin{itemize}
+  \setlength{\itemsep}{1pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{itemize}}
+
+\newenvironment{packedenumerate}{
+\begin{enumerate}
+  \setlength{\itemsep}{1pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{enumerate}}
+
+<<DmelSGIstyle, echo=FALSE, results="asis">>=
+  BiocStyle::latex(bibstyle="apalike")
+@
+
+\bioctitle[A Map of Directional Genetic Interactions in a Metazoan Cell, 
+Fischer et al., 2015]{\textsf{Source data and code for the paper\\
+               \textbf{A Map of Directional Genetic Interactions in a Metazoan 
+Cell}\\
+               Bernd Fischer, Thomas Sandmann, Thomas Horn, Maximilian
+               Billman, Varun Chaudhary, Wolfgang Huber, and Michael Boutros\\
+               eLife, in press, http://www.elifesciences.org.}}
+
+\author{Bernd Fischer\\[1em]German Cancer Research Center (DKFZ),\\ Heidelberg, 
+Germany\\ \texttt{b.fischer@dkfz.de}}
+
+<<DmelSGIopts,include=FALSE>>=
+library(knitr)
+opts_chunk$set(concordance=TRUE, 
+               resize.width="0.5\\textwidth", 
+               fig.align='center',
+               dev=c('pdf','png'),
+               cache=TRUE,
+               tidy = FALSE)
+@
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+
+\section{Introduction}
+This document is associated with the \Bioconductor{} package \Rpackage{DmelSGI},
+which contains the data and the \R{} code for the statistical analysis
+presented in the paper \\\\
+\begin{center}
+\begin{minipage}[t]{0.96\textwidth}
+\textit{A Map of Directional Genetic Interactions in a Metazoan Cell}\\
+Bernd Fischer, Thomas Sandmann, Thomas Horn, Maximilian
+               Billman, Varun Chaudhary, Wolfgang Huber, and Michael Boutros\\
+               eLife, in press, http://www.elifesciences.org.\\
+\end{minipage}
+\end{center}
+
+In Section~\ref{secDataAccess}, the access to the data is described. 
+% Section~\ref{Figures} shows the figures from the original
+% publication and links each figure to one of the subsequent sections,
+% which describe the statistical analyses in the order in which they
+% were executed. 
+The \R{} code within each section can be executed
+independently of the other sections.  Intermediate results from each
+section are available in the form of \R{} data objects.
+
+To install the \Biocexptpkg{DmelSGI}, please start a current version of
+\R{} and type
+<<DmelSGIinstallation,eval=FALSE>>=
+source("http://bioconductor.org/biocLite.R")
+biocLite("DmelSGI")
+@
+
+Some convenience functions for calling sub-vignettes.
+<<DmelSGIfunctions>>=
+fpath <- function(d) { file.path(opts_knit$get("output.dir"), "result", d,"") }
+@ 
+
+<<DmelSGIdataAccess, child=file.path('src/sec01_dataAccess.Rnw'), eval=TRUE>>=
+@ 
+
+<<DmelSGIreanalysisOfHornEtAl, fig.path=fpath("ReanalysisOfHornEtAl"),child=file.path('src','sec02_ReanalysisOfHornEtAl.Rnw'), eval=TRUE>>=
+@
+
+<<DmelSGIqueryGeneSelection, fig.path=fpath("QueryGeneSelection"), child=file.path('src','sec03_QueryGeneSelection.Rnw'), eval=TRUE>>=
+@
+
+<<DmelSGIimageProcessing, fig.path=fpath("ImageProcessing"), child=file.path('src','sec04_ImageProcessing.Rnw'), eval=TRUE>>=
+@
+
+<<DmelSGIqualityControl, fig.path=fpath("QualityControl"), child=file.path('src','sec05_QualityControl.Rnw'), eval=TRUE>>=
+@
+
+<<DmelSGIfeatureSelection, fig.path=fpath("FeatureSelection"), child=file.path('src','sec06_FeatureSelection.Rnw'), eval=TRUE>>=
+@
+
+<<DmelSGIpairwiseInteractionScores, fig.path=fpath("PairwiseInteractionScores"), child=file.path('src','sec07_PairwiseInteractionScores.Rnw'), eval=TRUE>>=
+@
+
+<<DmelSGIgeneticInteractionCube, fig.path=fpath("GeneticInteractionCube"), child=file.path('src','sec08_GeneticInteractionCube.Rnw'), eval=TRUE>>=
+@
+
+<<DmelSGIgeneticInteractionLandscape, fig.path=fpath("GeneticInteractionLandscape"), child=file.path('src','sec09_GeneticInteractionLandscape.Rnw'), eval=TRUE>>=
+@
+
+<<DmelSGIdirectionalInteractions, fig.path=fpath("DirectionalInteractions"), child=file.path('src','sec10_directionalInteractions.Rnw'), eval=TRUE>>=
+@
+
+\section{Session info}
+Here is the output of \Rfunction{sessionInfo} on the system on which this 
+document was compiled:
+<<DmelSGIsessioninfo>>=
+sessionInfo()
+@
+
+\nocite{horn2011mapping}
+
+\bibliography{literature}
+
+\end{document}
+

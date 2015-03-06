@@ -1,0 +1,216 @@
+
+\section{Image processing}
+
+\subsection{Image segmentation and feature extraction}
+<<ImageProcessingLibrary,message=FALSE,results='hide'>>=
+library("DmelSGI")
+library("RColorBrewer")
+
+basedir = getBaseDir()
+resultdir = file.path( basedir, "result", "ImageProcessing")
+dir.create(resultdir, recursive = TRUE,showWarnings=FALSE)
+
+data("datamatrix",package="DmelSGI")
+data("Features",package="DmelSGI")
+@
+
+Image analysis and features extraction was adapted from previously
+described methods~\cite{pau2010ebimage, fuchs2010clustering,
+  held2010cellcognition, carpenter2006cellprofiler}, using the R
+package \Rpackage{EBImage}~\cite{pau2010ebimage}. In the
+following, we use the term \emph{experiment} to denote a single well
+in a 384-well plate, corresponding to a cell population subjected to
+either a pair of dsRNAs, or to control reagents. Of each experiment,
+two images were analysed, one at 4x magnification and one at 10x
+magnification.
+
+\paragraph{4x-images}
+Nuclei were segmented and identified separately in the DAPI and pH3
+channels. Regions containing nuclei were separated from the image
+background by adaptive thresholding (window width 4 pixels).  Nuclei
+were identified by local maximum search on the intensities within
+nuclei-containing regions, resulting in seeds.  Seeds were extended to
+estimates of the whole nucleus area by the propagation
+algorithm of~\cite{jones2005voronoi}.
+
+The set of nuclei detected in the pH3 channel was matched to the set
+of nuclei detected in the DAPI channel by searching the nearest
+neighbor.  The algorithm employed the fact that the mitotic nuclei
+visible in the pH3 channel were a sparse subset of all nuclei visible
+in the DAPI channel.  Matches were accepted if the distance between
+the centers of the nuclei in the two channels was $\le5$
+pixels.
+
+\Sexpr{sum(Features[,"mag"]=="4x")} features were extracted. These included:
+\begin{packedenumerate}
+\item \label{feat4:1} Number of nuclei in the DAPI channel, number of
+  nuclei in the pH3 channel and absolute number and fraction of nuclei
+  in the DAPI channel with a matching nucleus in the pH3 channel.
+\item \label{feat4:2} Mean and standard deviation of area and
+  fluorescence intensity in both channels.
+\item \label{feat4:3} Local cell density was estimated with a kernel
+  density estimator using a Gaussian kernel on different scales
+  ($\sigma \in \{1, 2, 4, 8, 16, 32, 64, 128~\mbox{pixels}\}$).  The
+  mean of this density estimate evaluated on the center of cells was
+  used as a feature.
+\item \label{feat4:4} The ratio of the local cell density
+  features for $\sigma=8~\mbox{pixels}$ and
+  $\sigma=128~\mbox{pixels}$.
+\item $3\%$, $10\%$, $25\%$, $50\%$, $75\%$, $90\%$, and $97\%$
+  quantiles of area and fluorescence intensity.
+\item Histograms of fluorescence intensity and area. The histogram bin
+  sizes were preset based on visual inspection of data from prior
+  control experiments.
+\end{packedenumerate}
+Features under items~\ref{feat4:1} and \ref{feat4:2} were extracted
+once for all cells in the experiment, and once for cells within a
+radius of 900 pixels around the center of the image, to avoid shading
+effects. The features under item~\ref{feat4:3} tended to correlate with the
+total number of cells, while the feature of item~\ref{feat4:4} was
+chosen to be approximately independent of the total number of cells
+and to reflect potential higher-order clustering effects. The full
+list of features is generated in Section \ref{secQualityControlFeatures}.
+
+\paragraph{10x-images}
+Nuclei were segmented and identified separately in the DAPI and pH3
+channels. Regions containing nuclei were separated from the image
+background by adaptive thresholding (window width 10 pixels)
+and subsequent morphological opening.  Nuclei identified in the pH3
+channel were mapped to the nuclei extracted from the DAPI channel by
+maximum overlap.  The nucleus regions extracted from the DAPI channel
+were extended to the cell body by the propagation algorithm
+of~\cite{jones2005voronoi} using the fluorescence levels in the
+$\alpha$-tubulin channel.
+
+\Sexpr{sum(Features[,"mag"]=="10x")} features were extracted. These included:
+\begin{packedenumerate}
+\item Moments (length of the major axis and eccentricity).
+\item Shape features (area, perimeter, minimum radius, mean radius and maximum radius).
+\item Basic features (mean, standard deviation, median deviation,
+  $1\%$, $5\%$, $50\%$, $95\%$, $99\%$ quantiles of intensity)
+\item Haralick features \cite{haralick1973textural} on two scales to quantify texture.
+\end{packedenumerate}
+These features were computed for the nuclei segmentation from the DAPI
+channel and for cell segmentation from the $\alpha$-tubulin
+channel. The intensity values considered were taken from the DAPI
+channel, the $\alpha$-tubulin channel, and from a synthetic third
+channel which was computed by the cross-correlation of the DAPI and
+$\alpha$-tubulin intensities.  The pH3 intensities were used to
+classify the cells into two classes, mitotic and non-mitotic. To
+obtain features per experiment, the mean of the single cells features
+was computed separately for the mitotic and non-mitotic cells. The full
+list of features is generated in Section \ref{secQualityControlFeatures}.
+
+\paragraph{A 5D data cube}
+After feature extraction, the data were represented in a 5-dimensional
+array with dimensions
+\begin{packeditemize}
+\item 1367 target genes,
+\item \Sexpr{dim(datamatrix$D)[2]} dsRNA designs per target gene,
+\item \Sexpr{dim(datamatrix$D)[3]} query genes,
+\item \Sexpr{dim(datamatrix$D)[4]} dsRNA designs per query gene, %$ to make emacs happy
+\item \Sexpr{nrow(Features)} features.
+\end{packeditemize}
+
+\subsection{Transformation and scaling}
+Previous genetic interaction screens that were based on a quantitative
+cell viability phenotype were analysed using a multiplicative
+interaction model
+\cite{mani2008defining,schuldiner2005exploration,costanzo2010genetic,%
+  baryshnikova2010quantitative,bandyopadhyay2010rewiring}.
+For model fitting, it is then convenient to transform the data to a
+logarithmic scale. Motivated by
+\cite{horn2011mapping,axelsson2011extracting}, we adapted this
+approach to all features considered here.  Since some features had a
+non-positive range of values, instead of the logarithm we applied a
+generalized logarithm transform~\cite{huber2002variance}
+\begin{equation}\label{eq:glog}
+f(x; c) = \log\left(\frac{x+\sqrt{x^2+c^2}}{2}\right).
+\end{equation}
+This family of functions has one parameter $c$. For $c=0$, the
+function is equivalent to an ordinary logarithm
+transformation. For $c>0$, the function is smooth for all values of
+$x$ (including 0 and negative values), avoiding the singularity of the
+ordinary logarithm at $x=0$, but still approximately equivalent to the
+ordinary logarithm for $x\gg c$. See the following Figure. For each
+feature, we chose $c$ to be the $3\%$-quantile of the feature's
+empirical distribution.
+
+<<ImageProcessingGlog,fig.width=4.2,fig.height=4.2>>=
+px = seq(-1.5, 9, length.out=200)
+trsf = list(
+  log = function(x) log(ifelse(x>0, x, NA_real_)),
+ glog = function(x, c=1) log( (x+sqrt(x^2+c^2))/2 ))
+colores = c("#202020", "RoyalBlue")
+
+matplot(px, sapply(trsf, do.call, list(px)), type="l", lty=c(2,1), col=colores, lwd=2.5,
+        ylab="f(x)", xlab="x")
+legend("bottomright", fill=colores, legend=names(trsf))
+@
+
+After transformation, to take account of the fact that the data range of the different
+features was different, data were centered and scaled separately
+for each feature. Center and scale were computed as
+the median and median absolute deviation, respectively.
+
+In the following, we will refer to the array of
+transformed, centered and scaled values as $D_{ijklm}$, with the
+indices $i$, $j$, $k$, $l$, $m$ counting over the 5 dimensions listed above.
+
+\subsection{Single knockdown examples}
+\label{secExamplePhenotypesSingleKD}
+
+<<ImageProcessingBarchartsMainEffectsExampleImagesData>>=
+data("mainEffects",package="DmelSGI")
+@
+
+Average main effects (single knockdown effects) over dsRNA designs and batches and add a column for control (Fluc).
+<<ImageProcessingBarchartsMainEffectsExampleImages>>=
+Main = apply(mainEffects$target,c(1,4),mean,na.rm=TRUE)
+m = apply(Main,2,mad,center=0.0)
+for (i in 1:dim(Main)[2]) {
+  Main[,i] = Main[,i] / m[i]
+}
+Main = rbind(Main,Fluc=c(0.0,0.0,0.0))
+@
+
+<<ImageProcessingExamplePhenotypesSingleKDcol>>=
+ylim = range(Main[c("Fluc","ida","stg","Arpc1"),1:3])
+col = brewer.pal(4,"Pastel1")
+@
+
+<<ImageProcessingExamplePhenotypesSingleKD,resize.width="0.17\\textwidth",fig.show='hold',fig.width=1.5,fig.height=4>>=
+par(mar=c(0.2,2,2,0.2))
+barplot(Main["Fluc",c(1:3,13)],main="Fluc", col=col,ylim=ylim)
+abline(h=0.0)
+
+barplot(Main["ida",c(1:3,13)],main="ida", col=col,ylim=ylim)
+abline(h=0.0)
+
+barplot(Main["stg",c(1:3,13)],main="stg", col=col,ylim=ylim)
+abline(h=0.0)
+
+barplot(Main["Arpc1",c(1:3,13)],main="Arpc1", col=col,ylim=ylim)
+abline(h=0.0)
+
+plot(-10000,xaxt="n",yaxt="n",bty="n",xlim=c(0,1),ylim=c(0,1),xlab="",ylab="")
+legend("topleft",c("nr cells","MI","area","eccent."),fill=brewer.pal(4,"Pastel1"))
+@
+
+% \begin{center}
+% \includegraphics[width=0.17\textwidth]{Figures/ExamplePhenotypes-singleKD-Fluc.pdf}
+% \includegraphics[width=0.17\textwidth]{Figures/ExamplePhenotypes-singleKD-ida.pdf}
+% \includegraphics[width=0.17\textwidth]{Figures/ExamplePhenotypes-singleKD-stg.pdf}
+% \includegraphics[width=0.17\textwidth]{Figures/ExamplePhenotypes-singleKD-Arpc1.pdf}
+% \includegraphics[width=0.2\textwidth]{Figures/ExamplePhenotypes-singleKD-legend.pdf}
+% \end{center}
+
+<<ImageProcessingExamplePhenotypesSingleKDRasGAP1,resize.width="0.2\\textwidth",fig.width=2,fig.height=3>>=
+barplot(Main[c("Fluc","RasGAP1"),1],col=brewer.pal(3,"Pastel1")[1],
+        ylab=c("cell number","z-score"),yaxp=c(0,1,2),las=2)
+@
+
+% \begin{center}
+% \includegraphics[width=0.17\textwidth]{Figures/ExamplePhenotypes-singleKD-RasGAP1.pdf}
+% \end{center}
+% 

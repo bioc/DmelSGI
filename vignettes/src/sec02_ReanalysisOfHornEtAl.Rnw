@@ -1,0 +1,106 @@
+
+\section{Re-analysis of a genetic interaction screen and experimental design}
+\label{secReanalysisHorn}
+
+The choice of the target--query experimental design was based on our
+re-analysis of a symmetric genetic interaction matrix of 93 genes
+described by~\cite{horn2011mapping}.
+
+<<ReanalysisOfHornEtALLoadLibrary, results='hide', message=FALSE>>=
+library("DmelSGI")
+library("RNAinteractMAPK")
+
+basedir = getBaseDir()
+resultdir = file.path( basedir, "result", "ReanalysisOfHornEtAl")
+dir.create(resultdir, recursive = TRUE,showWarnings=FALSE)
+@
+
+Load the matrix with pairwise interaction scores of the Ras-signaling genetic interaction screen from the \Bioconductor{} package \Biocexptpkg{RNAinteractMAPK} \cite{horn2011mapping}.
+<<ReanalysisOfHornEtALLoadData>>=
+data("Dmel2PPMAPK", package="RNAinteractMAPK")
+print(Dmel2PPMAPK)
+PI <- getData(Dmel2PPMAPK, type="pi", format="targetMatrix", screen="mean",
+              withoutgroups = c("pos", "neg"))[,,1,]
+@
+
+Divide by the standard deviation to normalize each genetic interaction profile per phenotype.
+<<ReanalysisOfHornEtALNormalize>>=
+for (j in 1:dim(PI)[2]) {
+  for (k in 1:dim(PI)[3]) {
+    PI[,j,k] = PI[,j,k] / (sqrt(sum(PI[,j,k] * PI[,j,k]) / (dim(PI)[2]-1)))
+  }
+}
+@
+
+The query genes are ordered in a greedy manner, such that the genetic interaction profiles of the first genes describe most of the total variance in the whole genetic interaction screen. \warning{The next code-chunk requires a long run-time. Do not run the code, the result is hard coded afterwards.}
+<<ReanalysisOfHornEtALMaxVarianceSelection,eval=FALSE>>=
+Selected = c()
+Selected = c(1,2,3)
+R = 1:dim(PI)[1]
+Res = PI
+openVar = rep(-1,dim(PI)[1]+1)
+openVar[1] = sum(Res * Res) / (dim(PI)[1]*(dim(PI)[2]-1)*dim(PI)[3])
+for (i in 1:dim(PI)[1]) {
+  H = rep(100000000.0,length(R))
+  for (j in 1:length(R)) {
+    cat("i=",i," j=",j,"\n")
+    k=1:3
+    A = PI[,c(Selected[seq_len(i-1)],R[j]),k,drop=FALSE]
+    dim(A) = c(dim(A)[1],prod(dim(A)[2:3]))
+    B = PI[,-c(Selected[seq_len(i-1)],R[j]),k,drop=FALSE]
+    dim(B) = c(dim(B)[1],prod(dim(B)[2:3]))
+
+    Res = matrix(0.0, nr=dim(PI)[1],nc=ncol(B))
+    for (z in 1:ncol(B)) {
+      model = lm(B[,z]~A+0)
+      Res[,z] = model$residuals
+    }
+    H[j] = sum(Res * Res) / (dim(PI)[1]*(dim(PI)[2]-1)*dim(PI)[3])
+  }
+  M = which.min(H)
+  cat("selected: ",R[M],"\n")
+  Selected = c(Selected, R[M])
+  openVar[i+1] = H[M]
+  R = R[-M]
+}
+@
+
+To avoid long runtimes, the result from the previous code chunk is hard coded in the following code chunk.
+<<ReanalysisOfHornEtAL>>=
+openVar = c(1, 0.584295886914632, 0.49354448724904, 0.440095163032832,
+  0.37969110256306, 0.330693818887106, 0.28896777328302, 0.26144276377077,
+  0.24550380797587, 0.212282252772014, 0.19041097617251, 0.16974901306481,
+  0.15642204582756, 0.141467140253324, 0.12781027389229, 0.11609596000734,
+  0.10374891651534, 0.093268306952119, 0.08446425055463, 0.07404659630757,
+  0.06599890651265, 0.057244319680828, 0.04944008500553, 0.04161924747819,
+  0.03515950952616, 0.028667487889006, 0.02313772533424, 0.01727915218118,
+  0.01282727545013, 0.007910401967279, 0.00357968641756,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+)
+
+Selected = c(1, 2, 3, 16, 47, 9, 48, 63, 22, 74, 77, 53, 31, 27, 60, 6,
+15, 93, 5, 82, 67, 45, 91, 7, 30, 25, 59, 13, 55, 61, 54, 35,
+84, 4, 1, 2, 3, 8, 10, 11, 12, 14, 17, 18, 19, 20, 21, 23, 24,
+26, 28, 29, 32, 33, 34, 36, 37, 38, 39, 40, 41, 42, 43, 44, 46,
+49, 50, 51, 52, 56, 57, 58, 62, 64, 65, 66, 68, 69, 70, 71, 72,
+73, 75, 76, 78, 79, 80, 81, 83, 85, 86, 87, 88, 89, 90, 92)
+@
+
+Barplot showing the fraction of explained variance by the first $n$ query genes. 
+
+<<ReanalysisOfHornEtALbarplot,fig.height=5>>=
+N = 1:dim(PI)[1]
+bp = barplot(100.0*(1-openVar[N+1]),ylim=c(0,100),
+             ylab="explained variance [in %]",xlab="number query genes",
+             cex.axis=1.5,cex.lab=1.5)
+axis(side=1,at=bp[N %% 10 == 0],labels=(N)[N %% 10 == 0],cex.axis=1.5)
+@
+
+This analysis revealed that the
+full information content could be approximated by restricting one
+dimension of the matrix to a subset of genes. \Sexpr{min(which((1-openVar[2:94]) > 0.9))} query genes explain 90\% variance. \Sexpr{min(which((1-openVar[2:94]) > 0.95))} query genes explain 95\% variance. Thus, 10 to 20 {\it suitably
+  selected} query genes are sufficient to explain almost all of the
+variance in this data.  A similar result was reported
+by~\cite{Casey2008stepwise} for yeast interaction matrices.

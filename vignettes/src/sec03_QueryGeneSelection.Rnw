@@ -1,0 +1,97 @@
+
+\section{Selection of target and query genes}
+\label{secTargetQueryGeneSelection}
+
+\subsection{Target gene selection}
+\label{secTargetGeneSelection}
+<<QueryGeneSelectionLibrary,message=FALSE,results='hide'>>=
+library(DmelSGI)
+
+basedir = getBaseDir()
+resultdir = file.path( basedir, "result", "QueryGeneSelection")
+dir.create(resultdir, recursive = TRUE,showWarnings=FALSE)
+
+data("datamatrix", package="DmelSGI")
+@
+
+The experiment assayed all pairwise combinations of
+1367 target genes times
+\Sexpr{nrow(datamatrix$Anno$query)} query genes.
+The target genes were chosen according to the following criteria.
+\begin{packeditemize}
+\item Coverage by $\ge5$ reads in an RNA-seq data set~\cite{horn2010design}
+  of the cell line's transcriptome.
+\item Existence of an orthologous gene in H.\ sapiens, M.\ musculus,
+  C.\ elegans or S.\ cerevisiae.
+\item Annotation with one or more of the following Gene Ontology terms
+  or Panther pathway names:
+\begin{packeditemize}
+\item DNA metabolism (BP00034, GO:0006259)
+\item mRNA transcription (BP00040, GO:0006366)
+\item nucleoside, nucleotide and nucleic acid transporter (BP00058, GO:0015931)
+\item chromatin packaging and remodeling (BP00273, GO:0006333)
+\item oncogenesis (BP00281)
+\item cell cycle (BP00203, GO:0007049)
+\item nucleic acid binding (MF00042, GO:0003676)
+\item transcription factor (MF00036, GO:0030528)
+\item cell cycle (P00013)
+\item DNA replication (P00017)
+\item general transcription regulation (P00023)
+\end{packeditemize}
+Genes annotated with the following categories were excluded:
+\begin{packeditemize}
+\item tRNA metabolism (BP00054 , GO:0006399)
+\item histones (MF00063)
+\item mRNA processing factors (MF00065, GO:0003729)
+\item translation factors (MF00071, GO:0008135)
+\item ribosomal proteins (MF00075,GO:0003735)
+\item RNA-methyltransferase (MF00054, GO:0008173)
+\end{packeditemize}
+\end{packeditemize}
+
+\subsection{Query gene selection}
+\label{secQueryGeneSelection}
+
+To choose the query genes, we performed an initial screen, using the
+same setup that was going to be used for the main experiment, on
+single-dsRNA perturbations of all target genes.
+
+<<QueryGeneSelectionLoadLibrary, results='hide',message=FALSE>>=
+library("DmelSGI")
+
+data("SKDdata",package="DmelSGI")
+data("datamatrix",package="DmelSGI")
+@
+
+A principal component analysis of a single knock-down experiment.
+<<QueryGeneSelectionPCA>>=
+D = apply(SKDdata$D[ ,,1,],
+          c(1,3), mean, na.rm=TRUE)
+PCA = princomp(D)
+@
+
+The selected query genes are colored red, the other genes gray. Genes are ordered,
+such that the red points are plotted last.
+<<QueryGeneSelectionCol>>=
+col = ifelse(datamatrix$Anno$target$TID %in% datamatrix$Anno$query$TID,
+             "red","gray80")
+I = order(datamatrix$Anno$target$TID %in% datamatrix$Anno$query$TID)
+S = PCA$scores
+S = S[I,]
+col = col[I]
+@
+
+Resulting multivariate phenotypes were visualised through scatter
+plots of the data projected on the first five principal components.
+<<QueryGeneSelectionPairs>>=
+par(mar=c(0.2,0.2,0.2,0.2))
+pairs(S[,1:5],pch=20,cex=0.7,col=col)
+@
+
+We selected
+\Sexpr{nrow(datamatrix$Anno$query)} genes that had a moderately strong
+effect as assessed by visual analysis of the images, and in addition
+we required that they were approximately uniformly dispersed in the
+space of phenotypes as assessed in the principal component projection.
+The selected query genes are colored red.
+

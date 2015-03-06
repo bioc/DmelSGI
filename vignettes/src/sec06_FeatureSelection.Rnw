@@ -1,0 +1,135 @@
+
+\section{Feature selection}\label{secFeatureSelection}
+
+To select a subset of non-redundant features, we performed dimension
+reduction by stepwise feature selection.  Features were selected
+according to the stability of their non-redundant contribution to the
+overall data set, as described in this section.
+
+We started by selecting three features, number of cells, fraction of
+mitotic cells and cell area, based on their direct interpretability
+and to facilitate comparability of our data with those
+of~\cite{horn2011mapping}.  Subsequent features were selected by the
+following criterion.  For each candidate feature $m$, we fit a linear
+regression that modeled this feature's values over all experiments as
+a function of the already selected features,
+\begin{equation}
+  Y_{\cdot\,\cdot\,\cdot\,l\,m} \sim Y_{\cdot\,\cdot\,\cdot\,l\,M}
+\end{equation}
+where $M$ denotes the set of already selected features and $\sim$ indicates that a
+model is being fit that aims to predict the left hand side from the values on the right hand side.
+Let $\mathbf{r}_{m}^{l}$ denote the residuals of this fit. The magnitude of
+$\mathbf{r}_{m}^{l}$ is a measure of unique information content in
+feature $m$ that is not yet covered by the already selected
+features $M$. This unique information content is a combination of two
+components: measurement noise and systematic signal. To decompose
+this combination, we computed the correlation coefficient between
+$\mathbf{r}_{m}^{1}$ and $\mathbf{r}_{m}^{2}$.
+%\footnote{For this purpose, we regarded the data from the two independent
+% dsRNAs per \query{} gene as replicates.}
+Among all available candidate features,
+we selected the one with the maximum correlation and added it to the
+set $M$. We repeated this procedure until all features were
+exhausted. As a result, we obtained a ranking of the features by the order
+in which they were selected.  The following figure
+shows the correlation coefficients of the first 50 features ranked
+in this manner.
+
+<<FeatureSelectionLoadLibrary, results='hide', message=FALSE>>=
+library("DmelSGI")
+library("RColorBrewer")
+library("hwriter")
+library("xtable")
+
+basedir = getBaseDir()
+resultdir = file.path( basedir, "result", "FeatureSelection")
+dir.create(resultdir, recursive = TRUE,showWarnings=FALSE)
+@
+
+<<FeatureSelectionLoadData,results='hide'>>=
+data("stabilitySelection", package="DmelSGI")
+@
+
+<<FeatureSelectionPlotCor, resize.width="0.7\\textwidth",fig.width=11,fig.height=6>>=
+par(mar=c(12,5,0.5,0.5))
+barplot(stabilitySelection$correlation,
+        names.arg=hrNames(stabilitySelection$selected),las=2,
+        col=ifelse(stabilitySelection$ratioPositive > 0.5,
+                   brewer.pal(3,"Pastel1")[2],
+                   brewer.pal(3,"Pastel1")[1]),
+        ylab = "correlation", cex.lab=1.3)
+@
+
+
+To determine the cutoff for the number of features to use in the
+subsequent analyses, we considered the distribution of correlation
+coefficients of the candidate features at each iteration.
+The following figure shows, for each iteration, the fraction
+of features with positive correlation coefficients. 
+
+<<FeatureSelectionPlotRatio, resize.width="0.7\\textwidth",fig.width=11,fig.height=6>>=
+par(mar=c(12,5,0.5,0.5))
+barplot(stabilitySelection$ratioPositive-0.5,
+        names.arg=hrNames(stabilitySelection$selected),las=2,
+        col=ifelse(stabilitySelection$ratioPositive > 0.5,
+                   brewer.pal(3,"Pastel1")[2],
+                   brewer.pal(3,"Pastel1")[1]),
+        ylab = "ratio positive cor.", cex.lab=1.3,
+        offset=0.5)
+@
+
+If the set of remaining candidate features is completely uninformative
+(i.\,e.\ if they only contain independent noise), then the distribution of their
+correlation coefficients is centered symmetrically around 0, and the
+fraction is expected to be $1/2$. Based on this observation, we defined
+as a cutoff criterion that the fraction of positive correlation
+coefficients should be larger than $1/2$, which led to the selection \Sexpr{sum(stabilitySelection$ratioPositive > 0.5)}
+features. These are marked in blue in the figure above and listed on the following table.
+
+<<FeatureSelectionTableOfFeaturesData>>=
+data("stabilitySelection", package="DmelSGI")
+data("datamatrix", package="DmelSGI")
+@
+
+<<FeatureSelectionTableOfFeaturesTxt>>=
+df = as.data.frame(stabilitySelection[c("selected","correlation","ratioPositive")],
+                   stringsAsFactors=FALSE)
+row.names(df) = 1:nrow(df)
+df = cbind(df, Name=hrNames(stabilitySelection$selected),
+           Selected = ifelse(stabilitySelection$ratioPositive > 0.5,"Selected",""),
+           stringsAsFactors=FALSE)
+df = df[,c(1,4,2,3,5)]
+colnames(df) = c("ID","Name","Correlation","RatioPositive","Selected")
+write.table(df, file=file.path(resultdir,"StabilitySelectedFeatures.txt"), sep="\t",
+            quote=FALSE,row.names=FALSE)
+@
+
+<<FeatureSelectionTableOfFeaturesWebpage,echo=FALSE,results='hide'>>=
+file.copy(system.file("images/hwriter.css",package="hwriter"),resultdir)
+page=openPage(file.path(resultdir,"StabilitySelectedFeatures.html"), link.css="hwriter.css")
+hwrite("Features selected by stability", heading=1, page=page)
+hwrite("[Download as text file]", link="StabilitySelectedFeatures.txt", page=page)
+hwrite(df, page=page)
+closePage(page, splash=FALSE)
+XT = xtable(df,caption="List of features selected by stability")
+label(XT) = "TabStabilitySelection"
+print(XT, file=file.path(resultdir,"StabilitySelectedFeatures.tex"),
+      caption.placement="top")
+@
+
+The head of the table of selected features looks like this:
+<<FeatureSelectionTable,results='asis'>>=
+XT = xtable(df[1:7,],caption="List of features selected by stability")
+label(XT) = "TabStabilitySelection"
+print(XT,caption.placement="top")
+@
+
+The data remaining after feature selection were represented in a
+5-dimensional array $Y_{ijklm}$ with dimensions
+\begin{packeditemize}
+\item \Sexpr{dim(datamatrix$D)[1]} target genes,
+\item \Sexpr{dim(datamatrix$D)[2]} dsRNA designs per target gene,
+\item \Sexpr{dim(datamatrix$D)[3]} query genes,
+\item \Sexpr{dim(datamatrix$D)[4]} dsRNA designs per query gene, %$ to make emacs happy
+\item \Sexpr{dim(datamatrix$D)[5]} features.
+\end{packeditemize}
