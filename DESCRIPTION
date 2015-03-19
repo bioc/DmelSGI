@@ -1,13 +1,12 @@
 Package: DmelSGI
 Type: Package
-Title: Experimental data and analysis of the drosophila melanogaster
-        genetic interaction screen
-Version: 0.99.2
+Title: Experimental data and documented source code for the paper "A Map of Directional Genetic Interactions in a Metazoan Cell"
+Version: 0.99.3
 Author: Bernd Fischer
 Maintainer: Bernd Fischer <b.fischer@dkfz.de>
-Description: The package contains the experimental data and analysis of
-        the Drosophila melanogaster genetic interaction screen
-        published in the manuscript "Fischer et al., A Map of
+Description: The package contains the experimental data and documented 
+        source code of
+        the manuscript "Fischer et al., A Map of
         Directional Genetic Interactions in a Metazoan Cell, eLife,
         2015, in Press.". The vignette code generates all figures in
         the paper.
@@ -20,4 +19,5 @@ Suggests: BiocStyle, EBImage, RColorBrewer, RNAinteractMAPK,
         RSVGTipsDevice, cgdsr, hwriter, xtable, beeswarm
 NeedsCompilation: no
 biocViews: MicrotitrePlateAssayData, CellCulture,
-        Drosophila_melanogaster_Data, ExperimentData
+        Drosophila_melanogaster_Data, ExperimentData,
+        HighThroughputImagingData

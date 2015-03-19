@@ -25,7 +25,7 @@
 @
 
 \bioctitle[A Map of Directional Genetic Interactions in a Metazoan Cell, 
-Fischer et al., 2015]{\textsf{Source data and code for the paper\\
+Fischer et al., 2015]{\textsf{Experimental data and documented source code for the paper\\
                \textbf{A Map of Directional Genetic Interactions in a Metazoan 
 Cell}\\
                Bernd Fischer, Thomas Sandmann, Thomas Horn, Maximilian
