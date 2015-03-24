@@ -224,10 +224,12 @@ D = apply(SKDdata$D[I,,,],c(1,4), mean, na.rm=TRUE)
 
 i=3; j=2
 anova(lm(D[,i] ~ RohnEtAl[,j]))
-beeswarm(D[,i] ~ RohnEtAl[,j],pch=20, xlab=c(colnames(RohnEtAl)[j],"Rohn et al."), ylab=dimnames(D)[[2]][i])
+beeswarm(D[,i] ~ RohnEtAl[,j],pch=20, xlab=c(colnames(RohnEtAl)[j],"Rohn et al."),
+         ylab=dimnames(D)[[2]][i])
 i=13; j=5
 anova(lm(D[,i] ~ RohnEtAl[,j]))
-beeswarm(D[,i] ~ RohnEtAl[,j],pch=20, xlab=c(colnames(RohnEtAl)[j],"Rohn et al."), ylab=dimnames(D)[[2]][i])
+beeswarm(D[,i] ~ RohnEtAl[,j],pch=20, xlab=c(colnames(RohnEtAl)[j],"Rohn et al."),
+         ylab=dimnames(D)[[2]][i])
 @
 
 

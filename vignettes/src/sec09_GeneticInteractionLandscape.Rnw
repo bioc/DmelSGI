@@ -21,8 +21,7 @@ data("Interactions", package="DmelSGI")
 @
 
 \subsubsection*{Preprocessing of the interaction data and correlation matrix}
-\warning{Do not run the next code chunk. This will take quit a while.
-A hard coded result can be found in the overnext code chunk.} It computes normalization factors for each phenotypic feature. First, the standard deviation over the four siRNA combinations per gene pair per phenotype is computed. Then, the median of the standard deviations per phenotype is used as a normalization factor. 
+\warning{Note: the following code chunk takes a long time to run. For convenience, the code is only shown but not run here, and its precomputed result is assigned in the subsequent code chunk.} It computes normalization factors for each phenotypic feature. First, the standard deviation over the four siRNA combinations per gene pair per phenotype is computed. Then, the median of the standard deviations per phenotype is used as a normalization factor. 
 <<GIlandscapeNormalization1,eval=FALSE>>=
 data("pimatrix", package="DmelSGI")
 D = pimatrix$D
