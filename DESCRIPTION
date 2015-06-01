@@ -1,7 +1,7 @@
 Package: DmelSGI
 Type: Package
 Title: Experimental data and documented source code for the paper "A Map of Directional Genetic Interactions in a Metazoan Cell"
-Version: 1.1.0
+Version: 1.1.1
 Author: Bernd Fischer
 Maintainer: Bernd Fischer <b.fischer@dkfz.de>
 Description: The package contains the experimental data and documented 
@@ -18,6 +18,6 @@ VignetteBuilder: knitr
 Suggests: BiocStyle, EBImage, RColorBrewer, RNAinteractMAPK,
         RSVGTipsDevice, cgdsr, hwriter, xtable, beeswarm
 NeedsCompilation: no
-biocViews: MicrotitrePlateAssayData, CellCulture,
+biocViews: MicrotitrePlateAssayData, CellCulture, HighthroughputImagingData,
         Drosophila_melanogaster_Data, ExperimentData,
-        HighThroughputImagingData
+        HighThroughputImagingData, ReproducibleResearch
