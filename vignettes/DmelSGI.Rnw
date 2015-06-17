@@ -29,7 +29,7 @@ Fischer et al., 2015]{\textsf{Experimental data and documented source code for t
                \textbf{A Map of Directional Genetic Interactions in a Metazoan 
 Cell}\\
                Bernd Fischer, Thomas Sandmann, Thomas Horn, Maximilian
-               Billman, Varun Chaudhary, Wolfgang Huber, and Michael Boutros\\
+               Billmann, Varun Chaudhary, Wolfgang Huber, and Michael Boutros\\
                eLife, in press, http://www.elifesciences.org.}}
 
 \author{Bernd Fischer\\[1em]German Cancer Research Center (DKFZ),\\ Heidelberg, 
@@ -59,7 +59,7 @@ presented in the paper \\\\
 \begin{minipage}[t]{0.96\textwidth}
 \textit{A Map of Directional Genetic Interactions in a Metazoan Cell}\\
 Bernd Fischer, Thomas Sandmann, Thomas Horn, Maximilian
-               Billman, Varun Chaudhary, Wolfgang Huber, and Michael Boutros\\
+               Billmann, Varun Chaudhary, Wolfgang Huber, and Michael Boutros\\
                eLife, in press, http://www.elifesciences.org.\\
 \end{minipage}
 \end{center}
