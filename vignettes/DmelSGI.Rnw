@@ -25,21 +25,19 @@
 @
 
 \bioctitle[A Map of Directional Genetic Interactions in a Metazoan Cell, 
-Fischer et al., 2015]{\textsf{Experimental data and documented source code for the paper\\
-               \textbf{A Map of Directional Genetic Interactions in a Metazoan 
-Cell}\\
-               Bernd Fischer, Thomas Sandmann, Thomas Horn, Maximilian
+Fischer et al., 2015]{{\Large\color{black} Experimental data and documented source code for the paper}\\\\
+               A Map of Directional Genetic Interactions in a Metazoan Cell\\[0.5em]
+               \Large\textit{\color{black}Bernd Fischer, Thomas Sandmann, Thomas Horn, Maximilian
                Billmann, Varun Chaudhary, Wolfgang Huber, and Michael Boutros\\
-               eLife, in press, http://www.elifesciences.org.}}
+               eLife, 4, 2015}}
 
-\author{Bernd Fischer\\[1em]German Cancer Research Center (DKFZ),\\ Heidelberg, 
-Germany\\ \texttt{b.fischer@dkfz.de}}
+\author{Bernd Fischer\thanks{\email{b.fischer@dkfz.de}}\\
+German Cancer Research Center (DKFZ), Heidelberg, Germany}
 
 <<DmelSGIopts,include=FALSE>>=
 library(knitr)
 opts_chunk$set(concordance=TRUE, 
-               resize.width="0.5\\textwidth", 
-               fig.align='center',
+               resize.width="0.5\\textwidth",
                dev=c('pdf','png'),
                cache=TRUE,
                tidy = FALSE)
