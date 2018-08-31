@@ -74,8 +74,9 @@ section are available in the form of \R{} data objects.
 To install the \Biocexptpkg{DmelSGI}, please start a current version of
 \R{} and type
 <<DmelSGIinstallation,eval=FALSE>>=
-source("http://bioconductor.org/biocLite.R")
-biocLite("DmelSGI")
+if (!requireNamespace("BiocManager", quietly=TRUE))
+    install.packages("BiocManager")
+BiocManager::install("DmelSGI")
 @
 
 Some convenience functions for calling sub-vignettes.
