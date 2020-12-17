@@ -5,7 +5,8 @@
 \description{Subsets the features in a genetic interaction dataset in HDF5 format. The features are selected by \code{\link{selectByStability}} beforehand.
 }
 \usage{
-applyDimensionReduction(fileMatrixData, fileNew, selected, verbose = TRUE, overwrite = FALSE)
+  applyDimensionReduction(fileMatrixData, fileNew, selected, 
+                          verbose = TRUE, overwrite = FALSE)
 }
 %- maybe also 'usage' for other objects documented here.
 \arguments{
