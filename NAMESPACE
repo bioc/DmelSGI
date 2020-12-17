@@ -2,6 +2,12 @@
 ## import(zlibbioc)
 import(grid, TSP, limma, rhdf5, knitr, abind, gplots, igraph)
 
+importFrom("grDevices", "cairo_pdf", "dev.off", "png")
+importFrom("graphics", "abline", "arrows", "layout", "lines", "par",
+           "points", "segments", "text")
+importFrom("stats", "as.dist", "cor", "dist", "hclust", "lm", "mad",
+           "median", "p.adjust")
+
 # exportPattern("^[^\\.]")
 export(getBaseDir)
 export(applyDimensionReduction)

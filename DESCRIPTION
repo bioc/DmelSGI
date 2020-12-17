@@ -1,9 +1,14 @@
 Package: DmelSGI
 Type: Package
 Title: Experimental data and documented source code for the paper "A Map of Directional Genetic Interactions in a Metazoan Cell"
-Version: 1.22.0
-Author: Bernd Fischer
-Maintainer: Bernd Fischer <b.fischer@dkfz.de>
+Version: 1.22.1
+Authors@R: c(
+            person("Bernd", "Fischer", role = "aut"), 
+            person("Wolfgang", "Huber", role="ctb",
+                email = "whuber@embl.de"),
+            person("Mike", "Smith", role="cre", 
+                email = "mike.smith@embl.de")
+            )
 Description: The package contains the experimental data and documented 
         source code of
         the manuscript "Fischer et al., A Map of
@@ -12,7 +17,8 @@ Description: The package contains the experimental data and documented
         the paper.
 License: Artistic-2.0
 LazyLoad: true
-Imports: grid, TSP, limma, rhdf5, knitr, abind, gplots, igraph
+Imports: grid, TSP, limma, rhdf5, knitr, abind, gplots, igraph,
+        grDevices, graphics, stats
 Depends: R (>= 3.0)
 VignetteBuilder: knitr
 Suggests: BiocStyle, EBImage, RColorBrewer, RNAinteractMAPK,
