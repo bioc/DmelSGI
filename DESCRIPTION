@@ -1,7 +1,7 @@
 Package: DmelSGI
 Type: Package
 Title: Experimental data and documented source code for the paper "A Map of Directional Genetic Interactions in a Metazoan Cell"
-Version: 1.27.0
+Version: 1.28.0
 Authors@R: c(
             person("Bernd", "Fischer", role = "aut"), 
             person("Wolfgang", "Huber", role="ctb",
